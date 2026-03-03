@@ -488,7 +488,7 @@ select option{background:var(--card);color:var(--text)}
       <div class="grid-3" id="inv-kpis"></div>
       <div class="card-lg" style="overflow:hidden">
         <table class="data-table" id="inv-table">
-          <thead><tr><th>Factura</th><th>Cliente</th><th>Fecha</th><th>Vencimiento</th><th>Monto</th><th>Estado</th><th style="text-align:center">Acciones</th></tr></thead>
+          <thead><tr><th>Factura</th><th>Cliente</th><th>Proyecto</th><th>Fecha</th><th>Vencimiento</th><th>Monto</th><th>Estado</th><th style="text-align:center">Acciones</th></tr></thead>
           <tbody id="inv-tbody"></tbody>
         </table>
       </div>
@@ -660,12 +660,12 @@ select option{background:var(--card);color:var(--text)}
 
 <!-- NEW / EDIT TICKET MODAL -->
 <div class="modal-overlay" id="ticket-modal-overlay" onclick="closeModal('ticket-modal-overlay',event)">
-  <div class="modal-panel" style="max-width:640px;max-height:95vh">
-    <div class="modal-header" style="background:#004a80;border-radius:19px 19px 0 0;padding:18px 24px">
+  <div class="modal-panel" style="max-width:640px;max-height:95vh;display:flex;flex-direction:column;overflow:hidden">
+    <div class="modal-header" style="background:#004a80;border-radius:19px 19px 0 0;padding:18px 24px;flex-shrink:0">
       <span class="modal-title" id="ticket-modal-title" style="color:#fff;font-size:16px">🎫 Nuevo Ticket de Servicio</span>
       <button class="modal-close" style="color:rgba(255,255,255,.7)" onclick="closeModal('ticket-modal-overlay')">×</button>
     </div>
-    <div class="modal-body" style="padding:20px 24px">
+    <div class="modal-body" style="padding:20px 24px;overflow-y:auto;flex:1">
       <input type="hidden" id="tkt-id">
 
       <!-- Row 1: Cliente + Proyecto -->
@@ -684,7 +684,7 @@ select option{background:var(--card);color:var(--text)}
         </div>
       </div>
 
-      <!-- Row 2: Técnico + Fecha + Hora -->
+      <!-- Row 2: Técnico + Fecha + Hora Inicio -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
         <div class="field-group" style="margin:0">
           <label class="field-label">Técnico / Inspector</label>
@@ -721,11 +721,13 @@ select option{background:var(--card);color:var(--text)}
         </div>
       </div>
 
-      <!-- Servicios realizados -->
+      <!-- Servicios realizados — rows with stable IDs, no oninput binding -->
       <div class="field-group" style="margin-bottom:12px">
-        <label class="field-label">Servicios Realizados *</label>
-        <div id="tkt-services-list" style="margin-bottom:8px"></div>
-        <button class="btn-ghost btn-sm" onclick="addTicketService()">+ Agregar Servicio</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label class="field-label" style="margin:0">Servicios Realizados *</label>
+          <button class="btn-ghost btn-sm" type="button" onclick="addTicketService()">+ Agregar Servicio</button>
+        </div>
+        <div id="tkt-services-list"></div>
       </div>
 
       <!-- Materiales usados -->
@@ -746,8 +748,8 @@ select option{background:var(--card);color:var(--text)}
           <span style="font-weight:700;font-size:12px;color:var(--text)">✍️ Firma del Cliente</span>
           <div style="display:flex;gap:8px;align-items:center">
             <span id="tkt-sig-status" style="font-size:11px;color:var(--text3)">Sin firma</span>
-            <button class="btn-ghost btn-sm" onclick="openSigFullscreen()" title="Abrir pantalla completa (ideal para iPad/celular)">⛶ Pantalla Completa</button>
-            <button class="btn-ghost btn-sm" onclick="clearTicketSig()">🗑 Limpiar</button>
+            <button class="btn-ghost btn-sm" type="button" onclick="openSigFullscreen()" title="Pantalla completa (iPad/móvil)">⛶ Pantalla Completa</button>
+            <button class="btn-ghost btn-sm" type="button" onclick="clearTicketSig()">🗑 Limpiar</button>
           </div>
         </div>
         <div class="sig-canvas-wrap" style="height:140px">
@@ -758,9 +760,9 @@ select option{background:var(--card);color:var(--text)}
         </div>
       </div>
     </div>
-    <div class="modal-footer">
-      <button class="btn-ghost" onclick="closeModal('ticket-modal-overlay')">Cancelar</button>
-      <button class="btn-primary" id="save-ticket-btn" onclick="saveTicket()">💾 Guardar Ticket</button>
+    <div class="modal-footer" style="flex-shrink:0">
+      <button class="btn-ghost" type="button" onclick="closeModal('ticket-modal-overlay')">Cancelar</button>
+      <button class="btn-primary" type="button" id="save-ticket-btn" onclick="saveTicket()">💾 Guardar Ticket</button>
     </div>
   </div>
 </div>
@@ -791,6 +793,74 @@ select option{background:var(--card);color:var(--text)}
 <div class="modal-overlay" id="ticket-detail-overlay" onclick="closeModal('ticket-detail-overlay',event)">
   <div class="modal-panel" style="max-width:680px;max-height:95vh">
     <div id="ticket-detail-content"></div>
+  </div>
+</div>
+
+<!-- TICKET → INVOICE CONVERSION MODAL -->
+<div class="modal-overlay" id="tkt-convert-overlay" onclick="closeModal('tkt-convert-overlay',event)">
+  <div class="modal-panel" style="max-width:580px">
+    <div class="modal-header" style="background:linear-gradient(135deg,#004a80,#23953c);border-radius:19px 19px 0 0;padding:18px 24px">
+      <div>
+        <span class="modal-title" style="color:#fff;font-size:16px">📄 Convertir Ticket a Factura</span>
+        <div style="color:rgba(255,255,255,.65);font-size:11px;margin-top:3px">Asigna los rates por servicio para generar la factura</div>
+      </div>
+      <button class="modal-close" style="color:rgba(255,255,255,.7)" onclick="closeModal('tkt-convert-overlay')">×</button>
+    </div>
+    <div class="modal-body" style="padding:20px 24px">
+
+      <!-- Client / Project / Date info -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+        <div style="background:var(--card2);border-radius:10px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">Cliente</div>
+          <div style="font-weight:700;font-size:13px" id="tkt-conv-client">—</div>
+        </div>
+        <div style="background:var(--card2);border-radius:10px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">Proyecto</div>
+          <div style="font-weight:700;font-size:13px" id="tkt-conv-project">—</div>
+        </div>
+        <div style="background:var(--card2);border-radius:10px;padding:10px 12px">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:1px">Fecha Servicio</div>
+          <div style="font-weight:700;font-size:13px" id="tkt-conv-date">—</div>
+        </div>
+      </div>
+
+      <!-- Services with rate inputs -->
+      <div style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text2);margin-bottom:6px">Servicios — Asigna Rate ($)</div>
+      <div style="background:var(--card2);border-radius:10px;padding:4px 14px 0;margin-bottom:16px">
+        <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:6px 0 8px;border-bottom:2px solid var(--border)">
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3)">Servicio</span>
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);text-align:right;min-width:110px">Rate / Unidad</span>
+          <span style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);text-align:right;min-width:80px">Subtotal</span>
+        </div>
+        <div id="tkt-conv-services"></div>
+      </div>
+
+      <!-- Tax rate + notes -->
+      <div style="display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:14px">
+        <div class="field-group" style="margin:0">
+          <label class="field-label">Tax Rate (%)</label>
+          <input class="field-input" type="number" id="tkt-conv-tax-rate" min="0" max="100" value="9" oninput="updateTktConvertTotal()">
+        </div>
+        <div class="field-group" style="margin:0">
+          <label class="field-label">Notas en la Factura</label>
+          <input class="field-input" id="tkt-conv-notes" placeholder="Notas opcionales...">
+        </div>
+      </div>
+
+      <!-- Totals -->
+      <div style="background:rgba(0,74,128,0.05);border:1px solid rgba(0,74,128,0.15);border-radius:12px;padding:14px 18px">
+        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--text2)">Subtotal</span><span class="mono" id="tkt-conv-subtotal" style="font-weight:600">$0.00</span></div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px"><span style="color:var(--text2)">Tax</span><span class="mono" id="tkt-conv-tax" style="font-weight:600">$0.00</span></div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0 0;border-top:2px solid #004a80;margin-top:6px">
+          <span style="font-weight:800;font-size:15px">Total Factura</span>
+          <span class="mono" id="tkt-conv-total" style="font-weight:800;font-size:20px;color:#004a80">$0.00</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-ghost" onclick="closeModal('tkt-convert-overlay')">Cancelar</button>
+      <button class="btn-primary" style="background:linear-gradient(135deg,#004a80,#23953c);box-shadow:0 4px 14px rgba(0,74,128,0.3)" onclick="confirmTicketToInvoice()">✓ Generar Factura</button>
+    </div>
   </div>
 </div>
 
@@ -921,6 +991,7 @@ select option{background:var(--card);color:var(--text)}
     <div class="modal-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
         <div><div class="field-label">Cliente</div><div style="color:var(--text);font-weight:600;font-size:13px" id="modal-inv-client"></div></div>
+        <div><div class="field-label">Proyecto</div><div style="color:var(--text);font-weight:600;font-size:13px" id="modal-inv-project"></div></div>
         <div><div class="field-label">Fecha</div><div style="color:var(--text);font-weight:600;font-size:13px" id="modal-inv-date"></div></div>
         <div><div class="field-label">Vencimiento</div><div style="font-weight:600;font-size:13px" id="modal-inv-due"></div></div>
         <div><div class="field-label">Tax (9%)</div><div style="color:var(--text);font-weight:600;font-size:13px" id="modal-inv-tax"></div></div>
@@ -935,6 +1006,7 @@ select option{background:var(--card);color:var(--text)}
           <div class="totals-row"><span style="font-weight:800;font-size:15px">Total</span><span class="mono" id="modal-inv-total2" style="color:var(--accent);font-size:16px;font-weight:600"></span></div>
         </div>
       </div>
+      <div id="modal-inv-ticket-block" style="display:none;padding:0 0 4px 0"></div>
     </div>
     <div class="modal-footer">
       <button class="btn-ghost" style="flex:1" onclick="closeModal('inv-detail-overlay')">Cerrar</button>
@@ -997,6 +1069,7 @@ select option{background:var(--card);color:var(--text)}
     <div class="modal-body">
       <input type="hidden" id="edit-inv-id">
       <div class="field-group"><label class="field-label">Cliente</label><select class="field-input" id="edit-inv-client"></select></div>
+      <div class="field-group"><label class="field-label">Proyecto <span style="color:var(--text3);font-weight:400">(opcional)</span></label><input class="field-input" id="edit-inv-project" placeholder="Nombre del proyecto..."></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field-group"><label class="field-label">Fecha</label><input type="date" class="field-input" id="edit-inv-date"></div>
         <div class="field-group"><label class="field-label">Vencimiento</label><input type="date" class="field-input" id="edit-inv-due"></div>
@@ -1038,6 +1111,7 @@ select option{background:var(--card);color:var(--text)}
     <div class="modal-header"><span class="modal-title">Nueva Factura</span><button class="modal-close" onclick="closeModal('newinv-overlay')">×</button></div>
     <div class="modal-body">
       <div class="field-group"><label class="field-label">Cliente</label><select class="field-input" id="ni-client"></select></div>
+      <div class="field-group"><label class="field-label">Proyecto <span style="color:var(--text3);font-weight:400">(opcional)</span></label><input class="field-input" id="ni-project" placeholder="Nombre del proyecto..."></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
         <div class="field-group"><label class="field-label">Fecha</label><input type="date" class="field-input" id="ni-date"></div>
         <div class="field-group"><label class="field-label">Vencimiento</label><input type="date" class="field-input" id="ni-due"></div>
@@ -1125,7 +1199,19 @@ select option{background:var(--card);color:var(--text)}
         <div class="field-group"><label class="field-label">Monto ($)</label><input type="number" class="field-input" id="edit-exp-amount" placeholder="0.00"></div>
         <div class="field-group"><label class="field-label">Proveedor</label><input class="field-input" id="edit-exp-vendor" placeholder="Proveedor"></div>
         <div class="field-group"><label class="field-label">Fecha</label><input type="date" class="field-input" id="edit-exp-date"></div>
-        <div class="field-group"><label class="field-label">Recibo</label><select class="field-input" id="edit-exp-receipt"><option value="true">Sí, tengo recibo</option><option value="false">No disponible</option></select></div>
+      </div>
+      <div class="field-group" style="margin-top:8px">
+        <label class="field-label">Adjuntos / Fotos del Recibo</label>
+        <div id="edit-exp-attach-zone" style="border:2px dashed var(--border2);border-radius:10px;padding:12px;text-align:center;cursor:pointer;transition:all .2s"
+          onclick="document.getElementById('edit-exp-attach-input').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='var(--accent-soft)'"
+          ondragleave="this.style.borderColor='var(--border2)';this.style.background=''"
+          ondrop="handleAttachDrop(event,'edit-exp')">
+          <div style="font-size:18px;margin-bottom:2px">📎</div>
+          <div style="font-size:11px;color:var(--text2)">Arrastra fotos/recibo aquí o haz clic</div>
+        </div>
+        <input type="file" id="edit-exp-attach-input" multiple accept="image/*,.pdf" style="display:none" onchange="handleAttachInput(this,'edit-exp')">
+        <div id="edit-exp-attach-list" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1341,6 +1427,7 @@ function renderInvoices(filter=""){
     <tr>
       <td class="mono col-accent">${inv.id}</td>
       <td>${esc(inv.clientName)}</td>
+      <td class="col-muted" style="font-size:12px">${esc(inv.projectName||"—")}</td>
       <td class="col-muted">${fmtDate(inv.date)}</td>
       <td style="color:${inv.status==="overdue"?"#C0392B":"var(--text2)"}">${fmtDate(inv.due)}</td>
       <td class="mono" style="font-weight:600">${fmtCur(inv.total)}</td>
@@ -1361,6 +1448,7 @@ function openInvDetail(id){
   $("modal-inv-total").textContent=fmtCur(inv.total);
   $("modal-inv-badge").textContent=inv.status;
   $("modal-inv-client").textContent=inv.clientName;
+  const _mip=$("modal-inv-project");if(_mip)_mip.textContent=inv.projectName||"—";
   $("modal-inv-date").textContent=fmtDate(inv.date);
   $("modal-inv-due").textContent=fmtDate(inv.due);
   $("modal-inv-due").style.color=inv.status==="overdue"?"var(--red)":"var(--text)";
@@ -1373,6 +1461,17 @@ function openInvDetail(id){
   $("modal-inv-sub").textContent=fmtCur(inv.amount);
   $("modal-inv-tax2").textContent=fmtCur(inv.tax);
   $("modal-inv-total2").textContent=fmtCur(inv.total);
+  // Ticket adjunto
+  const tktBlock=$("modal-inv-ticket-block");
+  if(tktBlock){
+    if(inv.linkedTicket){
+      const tk=inv.linkedTicket;
+      const hours=calcHours(tk.timeStart,tk.timeEnd);
+      const svcsHtml=(tk.services||[]).map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 10px;background:${i%2?"#F8F9FB":"#fff"};border:1px solid #E5E7EB;border-radius:6px;margin-bottom:3px"><span style="font-size:12px">${esc(s.desc)}</span><span style="font-size:12px;font-weight:700;color:#004a80">×${s.qty}</span></div>`).join("");
+      tktBlock.style.display="block";
+      tktBlock.innerHTML=`<div style="background:rgba(0,74,128,0.05);border:1px solid rgba(0,74,128,0.2);border-radius:12px;padding:14px 16px;margin-top:14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid rgba(0,74,128,0.15)"><span style="font-size:16px">📋</span><div><div style="font-weight:700;font-size:13px;color:#004a80">Ticket Adjunto — ${esc(tk.id)}</div><div style="font-size:11px;color:var(--text3)">Generada desde este ticket de servicio</div></div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px"><div style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #E5E7EB"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Técnico</div><div style="font-weight:600;font-size:12px">${esc(tk.tech||"—")}</div></div><div style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #E5E7EB"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Fecha</div><div style="font-weight:600;font-size:12px">${fmtDate(tk.date)}</div></div><div style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #E5E7EB"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Horario</div><div style="font-weight:600;font-size:12px">${tk.timeStart||"—"} → ${tk.timeEnd||"—"}${hours?" ("+hours+")":""}</div></div><div style="background:#fff;border-radius:8px;padding:8px 10px;border:1px solid #E5E7EB"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Ubicación</div><div style="font-weight:600;font-size:12px;word-break:break-word">${esc(tk.location||"—")}</div></div></div>${svcsHtml?"<div style=\"margin-bottom:8px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px\">🔧 Servicios Realizados</div>"+svcsHtml+"</div>":""}${tk.materials?"<div style=\"margin-bottom:8px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:4px\">📦 Materiales</div><div style=\"background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:8px 10px;font-size:12px\">"+esc(tk.materials)+"</div></div>":""}${tk.signatureData?"<div><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:6px\">✍️ Firma del Cliente</div><div style=\"background:#fff;border:1px solid #E5E7EB;border-radius:8px;padding:8px;text-align:center\"><img src=\""+tk.signatureData+"\" style=\"max-height:70px;max-width:100%;border-radius:4px\"><div style=\"font-size:10px;color:var(--text3);margin-top:4px\">Firmado por: "+esc(tk.signerName||"cliente")+"</div></div></div>":""}</div>`;
+    }else{tktBlock.style.display="none";tktBlock.innerHTML="";}
+  }
   $("inv-detail-overlay").classList.add("open");
 }
 
@@ -1742,6 +1841,7 @@ function printInvoiceById(inv){
     <div>
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#9CA3AF;margin-bottom:8px">Facturado a</div>
       <div style="font-weight:700;font-size:15px;margin-bottom:3px">${inv.clientName}</div>
+      ${inv.projectName?`<div style="font-size:12px;color:#6B7280;margin-top:3px">📋 Proyecto: <strong>${inv.projectName}</strong></div>`:""}
     </div>
     <div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -1785,8 +1885,71 @@ function printInvoiceById(inv){
       </div>
     </div>
   </div>
+  <!-- Ticket Adjunto — replica exacta del printTicket con firma -->
+  ${inv.linkedTicket?(()=>{
+    const tk=inv.linkedTicket;
+    const hrs=calcHours(tk.timeStart,tk.timeEnd);
+    const tktStatus={open:{label:"Abierto",color:"#2563EB"},in_progress:{label:"En Progreso",color:"#D97706"},completed:{label:"Completado",color:"#16A34A"},closed:{label:"Cerrado",color:"#6B7280"}};
+    const st=tktStatus[tk.status]||tktStatus.completed;
+    const svcsHtml=(tk.services||[]).map((s,i)=>`<tr style="background:${i%2?"#F8F9FB":"#fff"}"><td style="padding:9px 12px;font-size:13px;border-bottom:1px solid #F0F0F0">${esc(s.desc)}</td><td style="padding:9px 12px;font-size:13px;text-align:center;border-bottom:1px solid #F0F0F0;font-weight:700">${s.qty}</td></tr>`).join("");
+    return `<div style="margin-top:36px;page-break-before:always">
+      <!-- Ticket Header -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:3px solid #004a80;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <img src="${DB.logoSrc}" style="height:48px;object-fit:contain" alt="Logo">
+          <div>
+            <div style="font-weight:800;font-size:15px;color:#004a80">${DB.company.name}</div>
+            <div style="font-size:11px;color:#6B7280;margin-top:2px">${DB.company.address}</div>
+            <div style="font-size:11px;color:#6B7280">${DB.company.email} · ${DB.company.phone}</div>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:4px">Ticket de Servicio</div>
+          <div style="font-size:26px;font-weight:900;color:#004a80;font-family:monospace">${esc(tk.id)}</div>
+          <div style="margin-top:5px;background:${st.color}20;color:${st.color};padding:2px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;text-transform:uppercase">${st.label}</div>
+        </div>
+      </div>
+      <!-- Info Grid -->
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Cliente</div><div style="font-weight:700;font-size:13px">${esc(tk.clientName)}</div></div>
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Proyecto</div><div style="font-weight:700;font-size:13px">${esc(tk.projectName||"—")}</div></div>
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Técnico</div><div style="font-weight:700;font-size:13px">${esc(tk.tech||"—")}</div></div>
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Fecha</div><div style="font-weight:700;font-size:13px">${fmtDate(tk.date)}</div></div>
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Horario</div><div style="font-weight:700;font-size:13px">${tk.timeStart||"—"} → ${tk.timeEnd||"—"}${hrs?" ("+hrs+")":""}</div></div>
+        <div style="background:#F8F9FB;border-radius:8px;padding:10px 12px"><div style="font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:3px">Ubicación</div><div style="font-weight:600;font-size:12px;word-break:break-word">${esc(tk.location||"—")}</div></div>
+      </div>
+      <!-- Services -->
+      <div style="margin-bottom:16px">
+        <div style="font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#374151;margin-bottom:8px">Servicios Realizados</div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden">
+          <thead><tr style="background:#004a80;color:#fff">
+            <th style="padding:9px 12px;text-align:left;font-size:11px;font-weight:700">Descripción del Servicio</th>
+            <th style="padding:9px 12px;text-align:center;font-size:11px;font-weight:700;width:80px">Cant.</th>
+          </tr></thead>
+          <tbody>${svcsHtml}</tbody>
+        </table>
+      </div>
+      ${tk.materials?`<div style="margin-bottom:14px"><div style="font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#374151;margin-bottom:6px">Materiales / Equipos</div><div style="background:#F8F9FB;border-radius:8px;padding:10px 14px;font-size:13px">${esc(tk.materials)}</div></div>`:""}
+      ${tk.notes?`<div style="margin-bottom:16px"><div style="font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#374151;margin-bottom:6px">Observaciones</div><div style="background:#F0F5FA;border-left:4px solid #004a80;padding:10px 14px;border-radius:6px;font-size:13px">${esc(tk.notes)}</div></div>`:""}
+      <!-- Signature — idéntica a printTicket -->
+      <div style="border:2px solid #E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:20px">
+        <div style="background:${tk.signatureData?"rgba(35,149,60,0.06)":"#F8F9FB"};padding:10px 14px;border-bottom:1px solid #E5E7EB;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:#374151">Firma del Cliente</span>
+          ${tk.signatureData?`<span style="color:#16A34A;font-size:12px;font-weight:700">✓ Firmado — ${esc(tk.signerName||"")}</span>`:`<span style="color:#9CA3AF;font-size:12px">Pendiente de firma</span>`}
+        </div>
+        ${tk.signatureData
+          ?`<div style="padding:14px;background:#fff;text-align:center"><img src="${tk.signatureData}" style="max-height:120px;max-width:350px;border-radius:6px;border:1px solid #E5E7EB"></div>`
+          :`<div style="height:100px;display:flex;align-items:center;justify-content:center;background:#fff"><div style="text-align:center;color:#9CA3AF"><div style="font-size:32px;margin-bottom:4px">✍️</div><div style="font-size:11px">Firma del cliente pendiente</div></div></div>`
+        }
+      </div>
+      <div style="border-top:1px solid #E5E7EB;padding-top:14px;display:flex;justify-content:space-between;font-size:11px;color:#9CA3AF">
+        <span>Ticket adjunto a Factura ${inv.id} · Generado por PJ6 Finance</span>
+        <span>${DB.company.name}</span>
+      </div>
+    </div>`;
+  })():""}
   <!-- Footer -->
-  <div style="border-top:1px solid #E5E7EB;padding-top:20px;display:flex;justify-content:space-between;align-items:center">
+  <div style="border-top:1px solid #E5E7EB;padding-top:20px;display:flex;justify-content:space-between;align-items:center;margin-top:20px">
     <div style="font-size:11px;color:#9CA3AF">Generado por PJ6 Finance System</div>
     <div style="font-size:11px;color:#9CA3AF">${DB.company.name} · ${DB.company.email}</div>
   </div>
@@ -1820,6 +1983,7 @@ function openEditInv(id){
   $("edit-inv-due").value=inv.due;
   $("edit-inv-status").value=inv.status;
   // Load invoice's own tax rate (falls back to invoice tax % or company default)
+  const _eiPrj=document.getElementById("edit-inv-project");if(_eiPrj)_eiPrj.value=inv.projectName||"";
   const invTaxPct=inv.taxRate!==undefined?inv.taxRate:(inv.amount>0?((inv.tax/inv.amount)*100):DB.company.taxRate);
   const editTaxInput=$("edit-tax-rate");
   if(editTaxInput)editTaxInput.value=parseFloat(invTaxPct.toFixed(2));
@@ -1855,8 +2019,9 @@ function saveEditInvoice(){
   const editTaxInput=$("edit-tax-rate");
   const editTaxPct=editTaxInput?parseFloat(editTaxInput.value)||0:inv.taxRate||DB.company.taxRate;
   const tax=sub*(editTaxPct/100);
-  Object.assign(inv,{clientId,clientName:client?.name||inv.clientName,date:$("edit-inv-date").value,due:$("edit-inv-due").value,status:$("edit-inv-status").value,items:[...DB.editInvItems],amount:sub,tax,taxRate:editTaxPct,total:sub+tax});
-  closeModal("edit-inv-overlay");renderInvoices();renderKPIs();renderInvStatus();showToast("Factura actualizada ✓");
+  const _eiProjVal=document.getElementById("edit-inv-project")?document.getElementById("edit-inv-project").value.trim():inv.projectName||"";
+  Object.assign(inv,{clientId,clientName:client?.name||inv.clientName,projectName:_eiProjVal,date:$("edit-inv-date").value,due:$("edit-inv-due").value,status:$("edit-inv-status").value,items:[...DB.editInvItems],amount:sub,tax,taxRate:editTaxPct,total:sub+tax});
+  saveToStorage();closeModal("edit-inv-overlay");renderInvoices();renderKPIs();renderInvStatus();showToast("Factura actualizada ✓");
 }
 
 // New Invoice
@@ -1870,6 +2035,7 @@ function openNewInv(){
   const niTaxInput=$("ni-tax-rate");
   if(niTaxInput)niTaxInput.value=DB.company.taxRate;
   attachBuffers.ni=[];renderNIItems();
+  const _niPrj=document.getElementById("ni-project");if(_niPrj)_niPrj.value="";
   $("newinv-overlay").classList.add("open");
 }
 function renderNIItems(){
@@ -1894,7 +2060,7 @@ function updateNITotal(){
   $("ni-total").textContent=fmtCur(sub+tax);
 }
 // ── ATTACHMENTS ──────────────────────────────────────────────────────────────
-const attachBuffers={ni:[],exp:[]};
+const attachBuffers={ni:[],exp:[],"edit-exp":[]};
 
 function handleAttachDrop(e,prefix){
   e.preventDefault();
@@ -1937,10 +2103,11 @@ function saveNewInvoice(){
   const tax=sub*(niTaxPct/100);
   const id="INV-"+Date.now().toString().slice(-4);
   const notes=document.getElementById("ni-notes")?document.getElementById("ni-notes").value:"";
-  DB.invoices.unshift({id,clientId,clientName:client.name,amount:sub,tax,taxRate:niTaxPct,total:sub+tax,date:$("ni-date").value,due:$("ni-due").value,status:"unpaid",items:[...DB.niItems],notes,attachments:[...attachBuffers.ni]});
+  const _proj=document.getElementById("ni-project")?document.getElementById("ni-project").value.trim():"";
+  DB.invoices.unshift({id,clientId,clientName:client.name,projectName:_proj,amount:sub,tax,taxRate:niTaxPct,total:sub+tax,date:$("ni-date").value,due:$("ni-due").value,status:"unpaid",items:[...DB.niItems],notes,attachments:[...attachBuffers.ni]});
   clearAttachBuffers("ni");
   if($("ni-notes"))$("ni-notes").value="";
-  closeModal("newinv-overlay");renderInvoices();renderKPIs();renderInvStatus();showToast("Factura creada: "+id+" ✓");
+  saveToStorage();closeModal("newinv-overlay");renderInvoices();renderKPIs();renderInvStatus();showToast("Factura creada: "+id+" ✓");
 }
 
 // ── TICKETS DE SERVICIO ───────────────────────────────────────────────────────
@@ -2080,11 +2247,13 @@ function renderTickets(){
           <div style="font-size:12px;font-weight:600">${(t.services||[]).length} item${(t.services||[]).length!==1?"s":""}</div>
         </div>
       </div>
-      ${t.status==="signed"&&t.signatureData?`<div style="background:rgba(35,149,60,0.08);border:1px solid rgba(35,149,60,0.2);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px;margin-bottom:10px"><span style="color:#23953c;font-size:12px">✍️ Firmado</span><span style="font-size:11px;color:var(--text3)">${esc(t.signerName||"")}</span></div>`:""}
+      ${t.status==="signed"&&t.signatureData?`<div style="background:rgba(35,149,60,0.08);border:1px solid rgba(35,149,60,0.2);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="color:#23953c;font-size:12px">✍️ Firmado</span><span style="font-size:11px;color:var(--text3)">${esc(t.signerName||"")}</span></div>`:""}
+      ${t.invoiced?`<div style="background:rgba(0,74,128,0.07);border:1px solid rgba(0,74,128,0.2);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px;margin-bottom:6px"><span style="font-size:12px">📄</span><span style="font-size:11px;color:#004a80;font-weight:700">${t.invoiceId}</span><span style="font-size:10px;color:var(--text3)">Facturado</span></div>`:""}
       <div style="display:flex;gap:6px;border-top:1px solid var(--border);padding-top:10px">
         <button class="btn-ghost btn-sm" style="flex:1" onclick="event.stopPropagation();viewTicketDetail('${t.id}')">👁 Ver</button>
         <button class="btn-ghost btn-sm" style="flex:1" onclick="event.stopPropagation();openTicketModal('${t.id}')">✏️ Editar</button>
         <button class="btn-ghost btn-sm" style="flex:1" onclick="event.stopPropagation();printTicket('${t.id}')">🖨️ PDF</button>
+        <button class="btn-ghost btn-sm" style="flex:1;color:#004a80;border-color:rgba(0,74,128,0.3);background:rgba(0,74,128,0.05)" onclick="event.stopPropagation();ticketToInvoice('${t.id}')" title="Convertir a Factura">📄 Factura</button>
         <button class="btn-icon btn-sm" style="color:var(--red)" onclick="event.stopPropagation();deleteTicket('${t.id}')">🗑</button>
       </div>
     </div>`;
@@ -2140,39 +2309,223 @@ function updateTicketProjects(){
   $("tkt-project").innerHTML=`<option value="">Sin proyecto</option>`+projs.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
 }
 
+// ── TICKET SERVICES — DOM-based (no oninput sync needed) ─────────────────────
 function renderTktServices(){
-  $("tkt-services-list").innerHTML=(DB.tktServices||[]).map((s,i)=>`
-    <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-bottom:6px;align-items:center">
-      <input class="field-input" placeholder="Descripción del servicio" value="${esc(s.desc)}" oninput="DB.tktServices[${i}].desc=this.value" style="font-size:12px;padding:7px 10px">
-      <input class="field-input" type="number" min="1" value="${s.qty}" style="width:60px;text-align:center;font-size:12px;padding:7px 8px" oninput="DB.tktServices[${i}].qty=Number(this.value)">
-      <button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;width:28px" onclick="DB.tktServices.splice(${i},1);renderTktServices()">×</button>
+  const list=document.getElementById("tkt-services-list");
+  if(!list)return;
+  // Read current values from existing inputs before re-rendering (preserve what user typed)
+  const existing=list.querySelectorAll(".tkt-svc-row");
+  existing.forEach((row,i)=>{
+    const desc=row.querySelector(".tkt-svc-desc");
+    const qty=row.querySelector(".tkt-svc-qty");
+    if(desc&&DB.tktServices[i]!==undefined)DB.tktServices[i].desc=desc.value;
+    if(qty&&DB.tktServices[i]!==undefined)DB.tktServices[i].qty=Number(qty.value)||1;
+  });
+  list.innerHTML=(DB.tktServices||[]).map((s,i)=>`
+    <div class="tkt-svc-row" style="display:grid;grid-template-columns:1fr 80px 32px;gap:8px;margin-bottom:6px;align-items:center">
+      <input class="field-input tkt-svc-desc" placeholder="Descripción del servicio" value="${esc(s.desc||'')}" style="font-size:12px;padding:7px 10px">
+      <input class="field-input tkt-svc-qty" type="number" min="1" value="${s.qty||1}" style="text-align:center;font-size:12px;padding:7px 8px">
+      <button type="button" style="background:none;border:1px solid rgba(192,57,43,0.25);border-radius:8px;color:var(--red);cursor:pointer;font-size:15px;width:32px;height:32px;display:flex;align-items:center;justify-content:center" onclick="removeTktService(${i})">×</button>
     </div>`).join("");
 }
-function addTicketService(){if(!DB.tktServices)DB.tktServices=[];DB.tktServices.push({desc:"",qty:1});renderTktServices();}
+
+function removeTktService(i){
+  // Sync DOM values before removing
+  syncTktServicesFromDOM();
+  DB.tktServices.splice(i,1);
+  renderTktServices();
+}
+
+function addTicketService(){
+  // Sync DOM values before adding a new row
+  syncTktServicesFromDOM();
+  if(!DB.tktServices)DB.tktServices=[];
+  DB.tktServices.push({desc:"",qty:1});
+  renderTktServices();
+  // Focus the new description input
+  setTimeout(()=>{
+    const rows=document.querySelectorAll(".tkt-svc-desc");
+    if(rows.length>0)rows[rows.length-1].focus();
+  },30);
+}
+
+function syncTktServicesFromDOM(){
+  const rows=document.querySelectorAll("#tkt-services-list .tkt-svc-row");
+  rows.forEach((row,i)=>{
+    const desc=row.querySelector(".tkt-svc-desc");
+    const qty=row.querySelector(".tkt-svc-qty");
+    if(!DB.tktServices[i])DB.tktServices[i]={desc:"",qty:1};
+    if(desc)DB.tktServices[i].desc=desc.value;
+    if(qty)DB.tktServices[i].qty=Number(qty.value)||1;
+  });
+}
 
 function saveTicket(){
-  const clientId=Number($("tkt-client").value);
-  const client=DB.clients.find(c=>c.id===clientId);
-  if(!client){alert("Selecciona un cliente");return;}
-  const services=DB.tktServices.filter(s=>s.desc.trim());
-  if(!services.length){alert("Agrega al menos un servicio");return;}
-  const projId=Number($("tkt-project").value)||null;
-  const proj=projId?DB.projects.find(p=>p.id===projId):null;
-  // Capture signature
-  let sigData="";
-  if(sigHasData){try{sigData=$("tkt-sig-canvas").toDataURL("image/png");}catch(e){}}
-  const status=$("tkt-status").value==="signed"&&sigData?"signed":$("tkt-status").value;
-  const tktData={clientId,clientName:client.name,projectId:projId,projectName:proj?.name||"",tech:$("tkt-tech").value,date:$("tkt-date").value,timeStart:$("tkt-time-start").value,timeEnd:$("tkt-time-end").value,location:$("tkt-location").value,services,materials:$("tkt-materials").value,notes:$("tkt-notes").value,status:sigData?"signed":status,signerName:$("tkt-signer-name").value,signatureData:sigData};
-  if(DB.currentTicketId){
-    const idx=DB.tickets.findIndex(x=>x.id===DB.currentTicketId);
-    if(idx>=0)DB.tickets[idx]={...DB.tickets[idx],...tktData};
-    showToast("Ticket actualizado ✓");
-  } else {
-    const id="TKT-"+String(Date.now()).slice(-4);
-    DB.tickets.unshift({id,...tktData});
-    showToast("Ticket creado: "+id+" ✓");
+  try{
+    // 1. Validate client
+    const clientId=Number($("tkt-client").value);
+    const client=DB.clients.find(c=>c.id===clientId);
+    if(!client){showToast("Selecciona un cliente","var(--red)");return;}
+
+    // 2. Read services directly from DOM inputs
+    const rows=document.querySelectorAll("#tkt-services-list .tkt-svc-row");
+    const services=[];
+    rows.forEach(row=>{
+      const descEl=row.querySelector(".tkt-svc-desc");
+      const qtyEl=row.querySelector(".tkt-svc-qty");
+      const desc=descEl?(descEl.value||"").trim():"";
+      const qty=qtyEl?(Number(qtyEl.value)||1):1;
+      if(desc)services.push({desc,qty});
+    });
+    if(!services.length){showToast("Agrega al menos un servicio con descripción","var(--red)");return;}
+
+    // 3. Project
+    const projId=Number($("tkt-project").value)||null;
+    const proj=projId?DB.projects.find(p=>p.id===projId):null;
+
+    // 4. Signature
+    let sigData="";
+    try{if(sigHasData&&$("tkt-sig-canvas"))sigData=$("tkt-sig-canvas").toDataURL("image/png");}catch(e){console.warn("sig error",e);}
+
+    // 5. Build ticket
+    const status=sigData?"signed":($("tkt-status").value||"open");
+    const tktData={
+      clientId,
+      clientName:client.name,
+      projectId:projId,
+      projectName:proj?proj.name:"",
+      tech:($("tkt-tech").value||"").trim(),
+      date:$("tkt-date").value||new Date().toISOString().split("T")[0],
+      timeStart:$("tkt-time-start").value||"",
+      timeEnd:$("tkt-time-end").value||"",
+      location:($("tkt-location").value||"").trim(),
+      services,
+      materials:($("tkt-materials").value||"").trim(),
+      notes:($("tkt-notes").value||"").trim(),
+      status,
+      signerName:($("tkt-signer-name").value||"").trim(),
+      signatureData:sigData
+    };
+
+    // 6. Insert or update
+    if(DB.currentTicketId){
+      const idx=DB.tickets.findIndex(x=>x.id===DB.currentTicketId);
+      if(idx>=0){
+        DB.tickets[idx]=Object.assign({},DB.tickets[idx],tktData);
+      } else {
+        // ID not found — create as new
+        DB.currentTicketId=null;
+      }
+    }
+    if(!DB.currentTicketId){
+      const id="TKT-"+String(Date.now()).slice(-4);
+      tktData.id=id;
+      DB.tickets.unshift(tktData);
+    }
+
+    // 7. Persist
+    saveToStorage();
+    closeModal("ticket-modal-overlay");
+    renderTickets();
+    showToast(DB.currentTicketId?"Ticket actualizado ✓":"Ticket creado ✓");
+    DB.currentTicketId=null;
+
+  }catch(err){
+    showToast("Error inesperado: "+err.message,"var(--red)");
+    console.error("saveTicket error:",err);
   }
-  closeModal("ticket-modal-overlay");renderTickets();
+}
+
+function ticketToInvoice(id){
+  const t=DB.tickets.find(x=>x.id===id);if(!t)return;
+  // Check if already converted
+  const existing=DB.invoices.find(i=>i.fromTicketId===id);
+  if(existing){
+    if(!confirm("Este ticket ya fue convertido a la factura "+existing.id+".\n¿Deseas crear una factura adicional?"))return;
+  }
+  // Build rate rows for each service
+  DB._tktConvertId=id;
+  const rows=(t.services||[]).map((s,i)=>`
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;color:var(--text)">${esc(s.desc)}<span style="color:var(--text3);margin-left:6px;font-size:11px">×${s.qty}</span></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--text3)">$</span>
+        <input id="tkt-rate-${i}" class="field-input" type="number" min="0" step="0.01" placeholder="0.00" style="width:110px;text-align:right;font-size:13px;padding:6px 10px" oninput="updateTktConvertTotal()">
+      </div>
+      <div id="tkt-line-${i}" class="mono" style="font-size:13px;font-weight:700;color:#004a80;min-width:80px;text-align:right">$0.00</div>
+    </div>`).join("");
+  $("tkt-conv-services").innerHTML=rows;
+  $("tkt-conv-client").textContent=t.clientName;
+  $("tkt-conv-project").textContent=t.projectName||"—";
+  $("tkt-conv-date").textContent=fmtDate(t.date);
+  $("tkt-conv-tax-rate").value=DB.company.taxRate;
+  $("tkt-conv-notes").value="Generada desde ticket "+t.id+(t.projectName?" — "+t.projectName:"");
+  updateTktConvertTotal();
+  $("tkt-convert-overlay").classList.add("open");
+}
+
+function updateTktConvertTotal(){
+  const t=DB.tickets.find(x=>x.id===DB._tktConvertId);if(!t)return;
+  let sub=0;
+  (t.services||[]).forEach((s,i)=>{
+    const rate=parseFloat(document.getElementById("tkt-rate-"+i)?.value)||0;
+    const line=s.qty*rate;sub+=line;
+    const el=document.getElementById("tkt-line-"+i);
+    if(el)el.textContent=fmtCur(line);
+  });
+  const taxPct=parseFloat($("tkt-conv-tax-rate").value)||0;
+  const tax=sub*(taxPct/100);
+  $("tkt-conv-subtotal").textContent=fmtCur(sub);
+  $("tkt-conv-tax").textContent=fmtCur(tax);
+  $("tkt-conv-total").textContent=fmtCur(sub+tax);
+}
+
+function confirmTicketToInvoice(){
+  const t=DB.tickets.find(x=>x.id===DB._tktConvertId);if(!t)return;
+  const items=(t.services||[]).map((s,i)=>{
+    const rate=parseFloat(document.getElementById("tkt-rate-"+i)?.value)||0;
+    return {desc:s.desc,qty:s.qty,rate};
+  });
+  const sub=items.reduce((acc,i)=>acc+(i.qty*i.rate),0);
+  if(sub===0){showToast("Asigna al menos un rate para continuar","var(--yellow)");return;}
+  const taxPct=parseFloat($("tkt-conv-tax-rate").value)||0;
+  const tax=sub*(taxPct/100);
+  const clientId=t.clientId;
+  const client=DB.clients.find(c=>c.id===clientId);
+  const today=new Date().toISOString().split("T")[0];
+  const due=new Date(Date.now()+DB.company.netDays*86400000).toISOString().split("T")[0];
+  const invId="INV-"+Date.now().toString().slice(-4);
+  // Snapshot del ticket para adjuntarlo a la factura
+  const ticketSnapshot={
+    id:t.id,
+    clientName:t.clientName,
+    projectName:t.projectName||"",
+    tech:t.tech||"",
+    date:t.date,
+    timeStart:t.timeStart||"",
+    timeEnd:t.timeEnd||"",
+    location:t.location||"",
+    services:t.services||[],
+    materials:t.materials||"",
+    notes:t.notes||"",
+    signatureData:t.signatureData||null,
+    signerName:t.signerName||""
+  };
+  DB.invoices.unshift({
+    id:invId,clientId,clientName:client?.name||t.clientName,
+    projectName:t.projectName||"",
+    amount:sub,tax,taxRate:taxPct,total:sub+tax,
+    date:today,due,status:"unpaid",items,
+    notes:$("tkt-conv-notes").value,
+    fromTicketId:t.id,
+    linkedTicket:ticketSnapshot
+  });
+  // Mark ticket as invoiced
+  t.invoiced=true;t.invoiceId=invId;
+  closeModal("tkt-convert-overlay");
+  renderTickets();renderInvoices();renderKPIs();
+  saveToStorage();showToast("✓ Factura "+invId+" creada desde ticket "+t.id);
+  navigate("invoices");
 }
 
 function deleteTicket(id){
@@ -2203,6 +2556,7 @@ function viewTicketDetail(id){
         <div style="background:var(--card2);border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);margin-bottom:3px">HORA INICIO / FIN</div><div style="font-weight:700">${t.timeStart||"—"} → ${t.timeEnd||"—"}${hours?" ("+hours+")":""}</div></div>
         <div style="background:var(--card2);border-radius:10px;padding:12px 14px"><div style="font-size:10px;color:var(--text3);margin-bottom:3px">UBICACIÓN</div><div style="font-weight:700;font-size:12px">${esc(t.location||"—")}</div></div>
       </div>
+      ${t.invoiced?`<div style="background:rgba(0,74,128,0.07);border:1px solid rgba(0,74,128,0.25);border-radius:10px;padding:10px 16px;margin-bottom:14px;display:flex;align-items:center;gap:10px"><span style="font-size:18px">📄</span><div><div style="font-weight:700;font-size:13px;color:#004a80">Ticket Facturado — ${esc(t.invoiceId)}</div><div style="font-size:11px;color:var(--text3)">Este ticket ya fue convertido a factura</div></div></div>`:""}
       <div style="margin-bottom:14px">
         <div style="font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px">🔧 Servicios Realizados</div>
         ${(t.services||[]).map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:8px 12px;background:${i%2?'var(--card2)':'var(--card)'};border:1px solid var(--border);border-radius:8px;margin-bottom:4px"><span style="font-size:13px">${esc(s.desc)}</span><span style="font-size:13px;font-weight:700;color:#004a80">×${s.qty}</span></div>`).join("")}
@@ -2217,10 +2571,11 @@ function viewTicketDetail(id){
         ${t.signatureData?`<div style="padding:10px;background:#fff;text-align:center"><img src="${t.signatureData}" style="max-height:100px;max-width:100%;border-radius:6px;border:1px solid var(--border)"></div>`:`<div style="padding:30px;text-align:center;color:var(--text3);font-size:13px">No hay firma capturada</div>`}
       </div>
     </div>
-    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px">
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-ghost" onclick="closeModal('ticket-detail-overlay')">Cerrar</button>
       <button class="btn-primary" onclick="closeModal('ticket-detail-overlay');openTicketModal('${t.id}')">✏️ Editar</button>
       <button class="btn-ghost" onclick="printTicket('${t.id}')">🖨️ Imprimir PDF</button>
+      <button style="background:rgba(0,74,128,0.08);border:1px solid rgba(0,74,128,0.3);color:#004a80;padding:8px 16px;border-radius:10px;cursor:pointer;font-weight:700;font-size:13px;font-family:Syne,sans-serif;transition:all .2s" onmouseover="this.style.background='#004a80';this.style.color='#fff'" onmouseout="this.style.background='rgba(0,74,128,0.08)';this.style.color='#004a80'" onclick="closeModal('ticket-detail-overlay');ticketToInvoice('${t.id}')">📄 Convertir a Factura</button>
     </div>`;
   $("ticket-detail-overlay").classList.add("open");
 }
@@ -2427,7 +2782,7 @@ function saveNewQuote(){
   const proj=projId?DB.projects.find(p=>p.id===projId):null;
   const id="QT-"+Date.now().toString().slice(-4);
   DB.quotes.unshift({id,clientId,clientName:client.name,projectId:projId,projectName:proj?.name||"",amount:sub,tax,taxRate:taxPct,total:sub+tax,date:$("nq-date").value,expiry:$("nq-expiry").value,status:"draft",items:[...DB.nqItems],notes:$("nq-notes").value});
-  closeQuoteForm();renderQuotes();showToast("Cotización creada: "+id+" ✓");
+  saveToStorage();closeQuoteForm();renderQuotes();showToast("Cotización creada: "+id+" ✓");
 }
 
 function openEditQuote(id){
@@ -2469,7 +2824,7 @@ function saveEditQuote(){
   const projId=Number($("eq-project").value)||null;
   const proj=projId?DB.projects.find(p=>p.id===projId):null;
   Object.assign(q,{clientId,clientName:client?.name||q.clientName,projectId:projId,projectName:proj?.name||"",amount:sub,tax,taxRate:taxPct,total:sub+tax,date:$("eq-date").value,expiry:$("eq-expiry").value,status:$("eq-status").value,items:[...DB.eqItems],notes:$("eq-notes").value});
-  closeModal("edit-quote-overlay");renderQuotes();showToast("Cotización actualizada ✓");
+  saveToStorage();closeModal("edit-quote-overlay");renderQuotes();showToast("Cotización actualizada ✓");
 }
 function deleteQuote(id){
   if(!confirm("¿Eliminar esta cotización?"))return;
@@ -2584,7 +2939,7 @@ function saveProject(){
     if(client)client.projects=(client.projects||0)+1;
     showToast("Proyecto creado ✓");
   }
-  closeModal("project-modal-overlay");
+  saveToStorage();closeModal("project-modal-overlay");renderClients();
 }
 
 // ── EXPENSES ──────────────────────────────────────────────────────────────────
@@ -2602,7 +2957,7 @@ function renderExpenses(){
       <td class="col-muted">${esc(e.vendor)}</td>
       <td class="col-muted">${fmtDate(e.date)}</td>
       <td class="mono col-red">-${fmtCur(e.amount)}</td>
-      <td style="color:${e.receipt?"var(--green)":"var(--red)"};font-size:15px">${e.receipt?"✓":"✗"}</td>
+      <td>${(()=>{const atts=e.attachments||[];if(!atts.length)return'<span style="color:var(--red);font-size:15px">✗</span>';const img=atts.find(a=>a.type&&a.type.startsWith("image/"));const more=atts.length>1?`<span style="font-size:10px;color:var(--text3);margin-left:3px">+${atts.length-1}</span>`:"";if(img)return`<img src="${img.data}" style="height:36px;width:48px;object-fit:cover;border-radius:6px;border:1px solid var(--border2);cursor:pointer;vertical-align:middle" onclick="openExpAttachViewer('${e.id}')" title="Ver ${atts.length} adjunto(s)">`+more;return`<span onclick="openExpAttachViewer('${e.id}')" style="cursor:pointer;background:var(--card2);border:1px solid var(--border2);border-radius:6px;padding:3px 8px;font-size:11px;color:var(--text2)">📎 ${atts.length}</span>`;})()}</td>
       <td style="text-align:center;white-space:nowrap">
         <button class="btn-icon" title="Imprimir" onclick="printExpense('${e.id}')">🖨️</button>
         <button class="btn-icon" title="Editar" onclick="openEditExp('${e.id}')" style="margin-left:4px">✏️</button>
@@ -2623,7 +2978,7 @@ function saveExpense(){
   clearAttachBuffers("exp");
   closeExpForm();renderExpenses();renderKPIs();
   $("exp-desc").value="";$("exp-amount").value="";$("exp-vendor").value="";
-  showToast("Gasto registrado ✓"+(hasAttach?" con "+attachBuffers.exp.length+" adjunto(s)":""));
+  saveToStorage();showToast("Gasto registrado ✓"+(hasAttach?" · adjuntos guardados ✓":""));
 }
 
 function openEditExp(id){
@@ -2635,7 +2990,8 @@ function openEditExp(id){
   $("edit-exp-amount").value=e.amount;
   $("edit-exp-vendor").value=e.vendor;
   $("edit-exp-date").value=e.date;
-  $("edit-exp-receipt").value=String(e.receipt);
+  attachBuffers["edit-exp"]=[...(e.attachments||[])];
+  renderAttachList("edit-exp");
   $("edit-exp-overlay").classList.add("open");
 }
 function saveEditExpense(){
@@ -2645,8 +3001,11 @@ function saveEditExpense(){
   e.amount=parseFloat($("edit-exp-amount").value)||0;
   e.vendor=$("edit-exp-vendor").value;
   e.date=$("edit-exp-date").value;
-  e.receipt=$("edit-exp-receipt").value==="true";
-  closeModal("edit-exp-overlay");renderExpenses();renderKPIs();showToast("Gasto actualizado ✓");
+  const _ea=attachBuffers["edit-exp"];
+  e.attachments=[..._ea];
+  e.receipt=_ea.length>0;
+  clearAttachBuffers("edit-exp");
+  saveToStorage();closeModal("edit-exp-overlay");renderExpenses();renderKPIs();showToast("Gasto actualizado ✓"+(_ea.length>0?" · "+_ea.length+" adjunto(s)":""));
 }
 function printExpense(id){
   const e=DB.expenses.find(ex=>ex.id===id);if(!e)return;
@@ -2694,6 +3053,36 @@ function printExpense(id){
   s.textContent="setTimeout(()=>window.print(),400);";
   w.document.body.appendChild(s);
   showToast("Abriendo gasto "+e.id+" para imprimir 🖨️");
+}
+function openExpAttachViewer(id){
+  const e=DB.expenses.find(x=>x.id===id);if(!e)return;
+  const atts=e.attachments||[];if(!atts.length)return;
+  const body=atts.map((a)=>{
+    if(a.type&&a.type.startsWith("image/"))
+      return `<div style="text-align:center;margin-bottom:16px"><img src="${a.data}" style="max-width:100%;max-height:320px;border-radius:10px;border:1px solid var(--border2);object-fit:contain;display:block;margin:0 auto"><div style="font-size:11px;color:var(--text3);margin-top:5px">${esc(a.name)}</div></div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card2);border-radius:10px;margin-bottom:8px"><span style="font-size:20px">📄</span><div><div style="font-size:13px;font-weight:600">${esc(a.name)}</div><div style="font-size:11px;color:var(--text3)">${(a.size/1024).toFixed(1)}KB</div></div></div>`;
+  }).join("");
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  const hdr=`<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0"><div><div style="font-weight:700;font-size:14px">📎 Adjuntos — ${esc(e.id)}</div><div style="font-size:11px;color:var(--text3)">${atts.length} archivo(s) · ${esc(e.description)}</div></div><button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3)">×</button></div>`;
+  ov.innerHTML=`<div style="background:var(--card);border-radius:18px;width:100%;max-width:520px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">${hdr}<div style="padding:18px 20px;overflow-y:auto">${body}</div></div>`;
+  ov.addEventListener("click",ev=>{if(ev.target===ov)ov.remove();});
+  document.body.appendChild(ov);
+}
+function openExpAttachViewer(id){
+  const e=DB.expenses.find(x=>x.id===id);if(!e)return;
+  const atts=e.attachments||[];if(!atts.length)return;
+  const body=atts.map((a)=>{
+    if(a.type&&a.type.startsWith("image/"))
+      return `<div style="text-align:center;margin-bottom:16px"><img src="${a.data}" style="max-width:100%;max-height:320px;border-radius:10px;border:1px solid var(--border2);object-fit:contain;display:block;margin:0 auto"><div style="font-size:11px;color:var(--text3);margin-top:5px">${esc(a.name)}</div></div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card2);border-radius:10px;margin-bottom:8px"><span style="font-size:20px">📄</span><div><div style="font-size:13px;font-weight:600">${esc(a.name)}</div><div style="font-size:11px;color:var(--text3)">${(a.size/1024).toFixed(1)}KB</div></div></div>`;
+  }).join("");
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  const hdr=`<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0"><div><div style="font-weight:700;font-size:14px">📎 Adjuntos — ${esc(e.id)}</div><div style="font-size:11px;color:var(--text3)">${atts.length} archivo(s) · ${esc(e.description)}</div></div><button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3)">×</button></div>`;
+  ov.innerHTML=`<div style="background:var(--card);border-radius:18px;width:100%;max-width:520px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">${hdr}<div style="padding:18px 20px;overflow-y:auto">${body}</div></div>`;
+  ov.addEventListener("click",ev=>{if(ev.target===ov)ov.remove();});
+  document.body.appendChild(ov);
 }
 function deleteExp(id){
   if(!confirm("¿Eliminar este gasto?"))return;
@@ -2803,7 +3192,7 @@ function saveClient(){
     DB.clients.push({id:newId,projects:0,...data});
     showToast("Cliente creado ✓");
   }
-  closeModal("client-modal-overlay");renderClients();
+  saveToStorage();closeModal("client-modal-overlay");renderClients();
 }
 function deleteClient(id){
   if(!confirm("¿Eliminar este cliente?"))return;
@@ -3243,8 +3632,73 @@ Responde en el idioma del usuario. Sé conciso y específico. Usa emojis con mod
   }
   aiLoading=false;renderAIMsgs();
 }
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){["ai-overlay","inv-detail-overlay","edit-inv-overlay","newinv-overlay","client-modal-overlay","edit-exp-overlay","edit-quote-overlay","project-modal-overlay","ticket-modal-overlay","ticket-detail-overlay"].forEach(id=>$(id).classList.remove("open"));}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){["ai-overlay","inv-detail-overlay","edit-inv-overlay","newinv-overlay","client-modal-overlay","edit-exp-overlay","edit-quote-overlay","project-modal-overlay","ticket-modal-overlay","ticket-detail-overlay","tkt-convert-overlay"].forEach(id=>$(id).classList.remove("open"));}});
 document.addEventListener("click",e=>{const s=$("sidebar");if(window.innerWidth<900&&s.classList.contains("open")&&!s.contains(e.target)&&e.target!==$("hamburger"))s.classList.remove("open");});
+
+// ── PERSISTENCIA localStorage ──────────────────────────────────────────────
+// Firmas (base64 PNG grandes) se guardan en clave separada para no exceder 5MB
+const LS_KEY="pj6_data_v2";
+const LS_SIGS_KEY="pj6_sigs_v2";
+function saveToStorage(){
+  try{
+    const sigs={};
+    const ticketsLean=DB.tickets.map(t=>{
+      if(t.signatureData)sigs[t.id]=t.signatureData;
+      return Object.assign({},t,{signatureData:""});
+    });
+    const invLean=DB.invoices.map(inv=>{
+      if(inv.linkedTicket&&inv.linkedTicket.signatureData){
+        sigs["inv_"+inv.id]=inv.linkedTicket.signatureData;
+        return Object.assign({},inv,{linkedTicket:Object.assign({},inv.linkedTicket,{signatureData:""})});
+      }
+      return inv;
+    });
+    const expLean=DB.expenses.map(ex=>Object.assign({},ex,{attachments:[]}));
+    const d={tickets:ticketsLean,invoices:invLean,expenses:expLean,clients:DB.clients,projects:DB.projects,quotes:DB.quotes||[],transactions:DB.transactions||[],company:{...DB.company,logoSrc:""},apiKey:DB.apiKey||""};
+    const json=JSON.stringify(d);
+    try{
+      localStorage.setItem(LS_KEY,json);
+    }catch(quota){
+      try{
+        localStorage.removeItem(LS_SIGS_KEY);
+        localStorage.setItem(LS_KEY,json);
+        showToast("Firmas omitidas por espacio limitado","var(--yellow)");
+      }catch(e2){
+        showToast("Error al guardar: almacenamiento lleno","var(--red)");
+        console.error("saveToStorage quota:",e2);
+        return false;
+      }
+    }
+    try{localStorage.setItem(LS_SIGS_KEY,JSON.stringify(sigs));}catch(e2){try{localStorage.setItem(LS_SIGS_KEY,"{}");}catch(e3){}}
+    return true;
+  }catch(e){
+    showToast("Error al guardar: "+e.message,"var(--red)");
+    console.error("saveToStorage error:",e);
+    return false;
+  }
+}
+function loadFromStorage(){
+  try{
+    const raw=localStorage.getItem(LS_KEY);
+    if(!raw)return;
+    const d=JSON.parse(raw);
+    let sigs={};
+    try{const sr=localStorage.getItem(LS_SIGS_KEY);if(sr)sigs=JSON.parse(sr);}catch(e){}
+    if(d.tickets&&Array.isArray(d.tickets))DB.tickets=d.tickets.map(t=>Object.assign({},t,{signatureData:sigs[t.id]||""}));
+    if(d.invoices&&Array.isArray(d.invoices))DB.invoices=d.invoices.map(inv=>{
+      if(inv.linkedTicket&&sigs["inv_"+inv.id])return Object.assign({},inv,{linkedTicket:Object.assign({},inv.linkedTicket,{signatureData:sigs["inv_"+inv.id]})});
+      return inv;
+    });
+    if(d.expenses&&Array.isArray(d.expenses))DB.expenses=d.expenses;
+    if(d.clients&&Array.isArray(d.clients))DB.clients=d.clients;
+    if(d.projects&&Array.isArray(d.projects))DB.projects=d.projects;
+    if(d.quotes&&Array.isArray(d.quotes))DB.quotes=d.quotes;
+    if(d.transactions&&Array.isArray(d.transactions))DB.transactions=d.transactions;
+    if(d.company)Object.assign(DB.company,d.company);
+    if(d.apiKey)DB.apiKey=d.apiKey;
+  }catch(e){console.warn("Error cargando datos:",e);}
+}
+loadFromStorage();
 renderAll();
 </script>
 </body>
