@@ -360,7 +360,7 @@ select option{background:var(--card);color:var(--text)}
       <div class="grid-4" id="kpi-row"></div>
       <div class="grid-2-1">
         <div class="card-lg">
-          <div class="section-header"><span class="section-title">Revenue — 2024</span><span style="font-size:11px;color:var(--text3)" id="ytd-label"></span></div>
+          <div class="section-header"><span class="section-title" id="revenue-chart-title">Revenue — 2024</span><span style="font-size:11px;color:var(--text3)" id="ytd-label"></span></div>
           <div style="padding:16px 16px 10px"><div class="bar-chart" id="bar-chart"></div></div>
         </div>
         <div class="card-lg">
@@ -1346,6 +1346,7 @@ function renderAll(){
   $("last-updated").textContent=fmtDate(new Date().toISOString());
   const T=computeLiveTotals();
   $("ytd-label").textContent="YTD: "+fmtCur(T.ytdRevenue);
+  const curYear=new Date().getFullYear();const titleEl=document.getElementById("revenue-chart-title");if(titleEl)titleEl.textContent="Revenue — "+curYear;
   renderKPIs(T);renderBarChart(T.monthlyRevenue,T.topClient);renderInvStatus();renderTxns(T.txns);
   renderInvoices();renderExpenses();renderClients();renderQuotes();renderTickets();
   updateExportCounts();
