@@ -542,10 +542,11 @@ select option{background:var(--card);color:var(--text)}
     <!-- REPORTS -->
     <div class="view" id="view-reports">
       <div class="grid-2" style="margin-bottom:18px">
-        <div class="report-card"><div class="report-icon">📊</div><div class="report-title">P&L Statement</div><div class="report-desc">Estado de Ganancias y Pérdidas YTD 2024 con desglose por categoría.</div><button class="btn-report" onclick="showPL()">Ver Reporte →</button></div>
+        <div class="report-card"><div class="report-icon">📊</div><div class="report-title">P&L Statement</div><div class="report-desc">Estado de Ganancias y Pérdidas del año con desglose por categoría de ingresos y gastos.</div><button class="btn-report" onclick="showPL()">Ver Reporte →</button></div>
         <div class="report-card"><div class="report-icon">⏱️</div><div class="report-title">Aging de Cuentas</div><div class="report-desc">Análisis de antigüedad: Current, 1-30, 31-60, 61-90 y 90+ días con filtros y selección.</div><button class="btn-report" onclick="showAging()">Ver Aging →</button></div>
-        <div class="report-card"><div class="report-icon">💸</div><div class="report-title">Cash Flow</div><div class="report-desc">Flujo de caja mensual con proyecciones para el próximo trimestre.</div><button class="btn-report" onclick="openAI();setAIPrompt('Dame un análisis de cash flow y proyección para el próximo trimestre')">Analizar con AI →</button></div>
-        <div class="report-card"><div class="report-icon">🏛️</div><div class="report-title">Resumen Fiscal</div><div class="report-desc">Resumen de impuestos, deducciones disponibles y optimización fiscal.</div><button class="btn-report" onclick="openAI();setAIPrompt('Analiza mi situación fiscal y dame recomendaciones de optimización')">Analizar con AI →</button></div>
+        <div class="report-card"><div class="report-icon">💸</div><div class="report-title">Cash Flow Mensual</div><div class="report-desc">Flujo de caja mensual: ingresos cobrados vs gastos por mes, saldo acumulado y tendencia.</div><button class="btn-report" onclick="showCashFlow()">Ver Reporte →</button></div>
+        <div class="report-card"><div class="report-icon">🏛️</div><div class="report-title">Resumen Fiscal</div><div class="report-desc">Resumen de IVU/taxes cobrados, gastos deducibles por categoría y utilidad gravable estimada.</div><button class="btn-report" onclick="showFiscalReport()">Ver Reporte →</button></div>
+        <div class="report-card"><div class="report-icon">👥</div><div class="report-title">Reporte por Cliente</div><div class="report-desc">Facturado, cobrado, pendiente y tickets por cliente. Ranking de clientes por ingresos.</div><button class="btn-report" onclick="showClientReport()">Ver Reporte →</button></div>
         <div class="report-card" style="border-color:rgba(0,74,128,0.3);background:rgba(0,74,128,0.03)"><div class="report-icon">📋</div><div class="report-title">Estado de Cuenta</div><div class="report-desc">Historial completo de pagos por cliente y período. Selecciona rango de fechas e imprime.</div><button class="btn-report" onclick="showEstadoCuenta()" style="background:#004a80;color:#fff;border-color:#004a80">Ver Estado de Cuenta →</button></div>
       </div>
       <!-- Dynamic report area -->
@@ -646,7 +647,7 @@ select option{background:var(--card);color:var(--text)}
         <!-- Last export info -->
         <div style="margin-top:12px;padding:12px 16px;background:var(--surface);border-radius:10px;display:flex;align-items:center;justify-content:space-between">
           <div style="font-size:12px;color:var(--text3)">Último backup: <span id="last-export-date" style="color:var(--text2)">Nunca</span></div>
-          <div style="font-size:11px;color:var(--text3)">Facturas: <span style="color:var(--accent);font-weight:600" id="exp-inv-count"></span> · Gastos: <span style="color:var(--accent);font-weight:600" id="exp-exp-count"></span> · Clientes: <span style="color:var(--accent);font-weight:600" id="exp-cli-count"></span></div>
+          <div style="font-size:11px;color:var(--text3)">Facturas: <span style="color:var(--accent);font-weight:600" id="exp-inv-count"></span> · Tickets: <span style="color:var(--accent);font-weight:600" id="exp-tkt-count"></span> · Cotizaciones: <span style="color:var(--accent);font-weight:600" id="exp-qt-count"></span> · Gastos: <span style="color:var(--accent);font-weight:600" id="exp-exp-count"></span> · Clientes: <span style="color:var(--accent);font-weight:600" id="exp-cli-count"></span> · Proyectos: <span style="color:var(--accent);font-weight:600" id="exp-proj-count"></span></div>
         </div>
       </div>
     </div>
@@ -1316,6 +1317,7 @@ function navigate(view){
   else pa.style.display="none";
   if(window.innerWidth<900)$("sidebar").classList.remove("open");
   $("search-input").value="";
+  if(view==="dashboard")renderAll();
 }
 function toggleSidebar(){$("sidebar").classList.toggle("open");}
 
@@ -3407,24 +3409,231 @@ function printReport(title){
   setTimeout(()=>window.print(),400);
 }
 
+// ── CASH FLOW REPORT ──────────────────────────────────────────────────────────
+function showCashFlow(){
+  const months=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const year=new Date().getFullYear();
+  // Build monthly income from paid invoices
+  const income=Array(12).fill(0);
+  const expense=Array(12).fill(0);
+  DB.invoices.filter(i=>i.status==="paid"&&i.date).forEach(i=>{
+    const d=new Date(i.date);
+    if(d.getFullYear()===year)income[d.getMonth()]+=i.total;
+  });
+  DB.expenses.filter(e=>e.date).forEach(e=>{
+    const d=new Date(e.date);
+    if(d.getFullYear()===year)expense[d.getMonth()]+=e.amount;
+  });
+  const net=income.map((v,i)=>v-expense[i]);
+  let cumulative=0;
+  const curMonth=new Date().getMonth();
+  const rows=months.map((m,i)=>{
+    if(i>curMonth&&income[i]===0&&expense[i]===0)return"";
+    cumulative+=net[i];
+    const netColor=net[i]>=0?"#23953c":"#C0392B";
+    const cumColor=cumulative>=0?"#23953c":"#C0392B";
+    return`<tr style="border-top:1px solid var(--border)${i===curMonth?";background:rgba(0,74,128,0.04)":""}">
+      <td style="padding:10px 14px;font-size:13px;font-weight:${i===curMonth?700:400}">${m}${i===curMonth?" ◀":""}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#23953c;text-align:right">${fmtCur(income[i])}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#C0392B;text-align:right">${fmtCur(expense[i])}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:${netColor};text-align:right;font-weight:700">${fmtCur(net[i])}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:${cumColor};text-align:right">${fmtCur(cumulative)}</td>
+    </tr>`;
+  }).join("");
+  const totalIncome=income.reduce((a,b)=>a+b,0);
+  const totalExpense=expense.reduce((a,b)=>a+b,0);
+  const totalNet=totalIncome-totalExpense;
+  $("report-area").innerHTML=`
+  <div class="card-lg" style="overflow:hidden">
+    ${reportHeader("Cash Flow — "+year)}
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap">
+      <div style="background:rgba(35,149,60,0.08);border:1px solid rgba(35,149,60,0.2);border-radius:10px;padding:10px 18px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Ingresos YTD</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#23953c">${fmtCur(totalIncome)}</div>
+      </div>
+      <div style="background:rgba(192,57,43,0.08);border:1px solid rgba(192,57,43,0.2);border-radius:10px;padding:10px 18px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Gastos YTD</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:#C0392B">${fmtCur(totalExpense)}</div>
+      </div>
+      <div style="background:rgba(0,74,128,0.08);border:1px solid rgba(0,74,128,0.2);border-radius:10px;padding:10px 18px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Flujo Neto</div>
+        <div style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:${totalNet>=0?"#23953c":"#C0392B"}">${fmtCur(totalNet)}</div>
+      </div>
+    </div>
+    <table class="data-table" style="width:100%">
+      <thead><tr>
+        <th>Mes</th>
+        <th style="text-align:right">Ingresos</th>
+        <th style="text-align:right">Gastos</th>
+        <th style="text-align:right">Flujo Neto</th>
+        <th style="text-align:right">Acumulado</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="background:#004a80">
+        <td style="padding:10px 14px;color:#fff;font-weight:800">TOTAL</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#86efac;text-align:right;font-weight:700">${fmtCur(totalIncome)}</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#fca5a5;text-align:right;font-weight:700">${fmtCur(totalExpense)}</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:${totalNet>=0?"#86efac":"#fca5a5"};text-align:right;font-weight:800">${fmtCur(totalNet)}</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#fff;text-align:right"></td>
+      </tr></tfoot>
+    </table>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:8px">
+      <button class="btn-primary btn-sm" onclick="printReport('Cash Flow')">🖨️ Imprimir</button>
+    </div>
+  </div>`;
+  $("report-area").scrollIntoView({behavior:"smooth"});
+}
+
+// ── FISCAL REPORT ─────────────────────────────────────────────────────────────
+function showFiscalReport(){
+  const year=new Date().getFullYear();
+  const paidInvs=DB.invoices.filter(i=>i.status==="paid");
+  const totalRevenue=paidInvs.reduce((s,i)=>s+i.amount,0);
+  const totalTaxCollected=paidInvs.reduce((s,i)=>s+i.tax,0);
+  const totalGross=paidInvs.reduce((s,i)=>s+i.total,0);
+  // Expenses by category
+  const expByCat={};
+  DB.expenses.forEach(e=>{
+    expByCat[e.category||"Other"]=(expByCat[e.category||"Other"]||0)+e.amount;
+  });
+  const totalExpenses=DB.expenses.reduce((s,e)=>s+e.amount,0);
+  const taxableIncome=totalRevenue-totalExpenses;
+  const catRows=Object.entries(expByCat).sort((a,b)=>b[1]-a[1]).map(([cat,amt])=>`
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:9px 14px;font-size:13px">${cat}</td>
+      <td style="padding:9px 14px;font-family:'DM Mono',monospace;text-align:right">${fmtCur(amt)}</td>
+      <td style="padding:9px 14px;font-size:11px;color:var(--text3);text-align:right">${totalExpenses>0?((amt/totalExpenses)*100).toFixed(1)+"%":"—"}</td>
+    </tr>`).join("");
+  $("report-area").innerHTML=`
+  <div class="card-lg" style="overflow:hidden;margin-bottom:16px">
+    ${reportHeader("Resumen Fiscal — "+year)}
+    <div style="padding:20px 24px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Ingresos Brutos</div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:#23953c">${fmtCur(totalRevenue)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${paidInvs.length} facturas cobradas</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">IVU / Tax Cobrado</div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:#4e888f">${fmtCur(totalTaxCollected)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Tax rate promedio: ${totalRevenue>0?((totalTaxCollected/totalRevenue)*100).toFixed(1):0}%</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px">
+          <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Gastos Deducibles</div>
+          <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:#C0392B">${fmtCur(totalExpenses)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${DB.expenses.length} transacciones</div>
+        </div>
+      </div>
+      <div style="background:rgba(0,74,128,0.06);border:2px solid #004a80;border-radius:12px;padding:16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Ingreso Neto Gravable Estimado</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Ingresos Brutos − Gastos Deducibles</div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:28px;font-weight:800;color:${taxableIncome>=0?"#004a80":"#C0392B"}">${fmtCur(taxableIncome)}</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-lg" style="overflow:hidden">
+    <div class="section-header"><span class="section-title">Gastos Deducibles por Categoría</span></div>
+    <table class="data-table" style="width:100%">
+      <thead><tr><th>Categoría</th><th style="text-align:right">Total</th><th style="text-align:right">% del Total</th></tr></thead>
+      <tbody>${catRows}</tbody>
+      <tfoot><tr style="background:#004a80">
+        <td style="padding:10px 14px;color:#fff;font-weight:800">TOTAL GASTOS</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#fca5a5;text-align:right;font-weight:700">${fmtCur(totalExpenses)}</td>
+        <td style="padding:10px 14px;color:#fff;text-align:right">100%</td>
+      </tr></tfoot>
+    </table>
+    <div style="padding:14px 20px;border-top:1px solid var(--border)">
+      <button class="btn-primary btn-sm" onclick="printReport('Resumen Fiscal')">🖨️ Imprimir</button>
+    </div>
+  </div>`;
+  $("report-area").scrollIntoView({behavior:"smooth"});
+}
+
+// ── CLIENT REPORT ─────────────────────────────────────────────────────────────
+function showClientReport(){
+  const clientData=DB.clients.map(c=>{
+    const invs=DB.invoices.filter(i=>i.clientId===c.id);
+    const billed=invs.reduce((s,i)=>s+i.total,0);
+    const paid=invs.filter(i=>i.status==="paid").reduce((s,i)=>s+i.total,0);
+    const pending=invs.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
+    const overdue=invs.filter(i=>i.status==="overdue").reduce((s,i)=>s+i.total,0);
+    const tkts=(DB.tickets||[]).filter(t=>t.clientId===c.id).length;
+    const projs=(DB.projects||[]).filter(p=>p.clientId===c.id).length;
+    return{...c,billed,paid,pending,overdue,invCount:invs.length,tkts,projs};
+  }).sort((a,b)=>b.billed-a.billed);
+  const totalBilled=clientData.reduce((s,c)=>s+c.billed,0);
+  const rows=clientData.map((c,i)=>`
+    <tr style="border-top:1px solid var(--border)">
+      <td style="padding:10px 14px">
+        <div style="font-weight:700;font-size:13px">${i+1}. ${esc(c.name)}</div>
+        <div style="font-size:11px;color:var(--text3)">${c.email||""}</div>
+      </td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;text-align:right;color:#23953c;font-weight:700">${fmtCur(c.billed)}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;text-align:right;color:#23953c">${fmtCur(c.paid)}</td>
+      <td style="padding:10px 14px;font-family:'DM Mono',monospace;text-align:right;color:${c.overdue>0?"#C0392B":"#4e888f"}">${fmtCur(c.pending)}</td>
+      <td style="padding:10px 14px;text-align:center;font-size:13px">${c.invCount}</td>
+      <td style="padding:10px 14px;text-align:center;font-size:13px">${c.tkts}</td>
+      <td style="padding:10px 14px;text-align:center;font-size:13px">${c.projs}</td>
+      <td style="padding:10px 14px;text-align:right;font-size:11px;color:var(--text3)">${totalBilled>0?((c.billed/totalBilled)*100).toFixed(1)+"%":"—"}</td>
+    </tr>`).join("");
+  $("report-area").innerHTML=`
+  <div class="card-lg" style="overflow:hidden">
+    ${reportHeader("Reporte por Cliente")}
+    <table class="data-table" style="width:100%">
+      <thead><tr>
+        <th>Cliente</th>
+        <th style="text-align:right">Facturado</th>
+        <th style="text-align:right">Cobrado</th>
+        <th style="text-align:right">Pendiente</th>
+        <th style="text-align:center">Facturas</th>
+        <th style="text-align:center">Tickets</th>
+        <th style="text-align:center">Proyectos</th>
+        <th style="text-align:right">% Revenue</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr style="background:#004a80">
+        <td style="padding:10px 14px;color:#fff;font-weight:800">TOTAL</td>
+        <td style="padding:10px 14px;font-family:'DM Mono',monospace;color:#86efac;text-align:right;font-weight:700">${fmtCur(totalBilled)}</td>
+        <td colspan="6"></td>
+      </tr></tfoot>
+    </table>
+    <div style="padding:14px 20px;border-top:1px solid var(--border)">
+      <button class="btn-primary btn-sm" onclick="printReport('Reporte por Cliente')">🖨️ Imprimir</button>
+    </div>
+  </div>`;
+  $("report-area").scrollIntoView({behavior:"smooth"});
+}
+
 // ── EXPORT / IMPORT ──────────────────────────────────────────────────────────
 function updateExportCounts(){
   const ic=$("exp-inv-count"),ec=$("exp-exp-count"),cc=$("exp-cli-count");
+  const tc=$("exp-tkt-count"),qc=$("exp-qt-count"),pc=$("exp-proj-count");
   if(ic)ic.textContent=DB.invoices.length;
   if(ec)ec.textContent=DB.expenses.length;
   if(cc)cc.textContent=DB.clients.length;
+  if(tc)tc.textContent=(DB.tickets||[]).length;
+  if(qc)qc.textContent=(DB.quotes||[]).length;
+  if(pc)pc.textContent=(DB.projects||[]).length;
 }
 
 function exportAllData(){
   // Exclude logo from export to keep file small — it can be re-uploaded
   const exportData={
-    version:"1.0",
+    version:"2.0",
     exportedAt:new Date().toISOString(),
     company:{...DB.company,logoSrc:""},
     clients:DB.clients,
     invoices:DB.invoices,
     expenses:DB.expenses,
     transactions:DB.transactions,
+    tickets:DB.tickets||[],
+    quotes:DB.quotes||[],
+    projects:DB.projects||[],
+    monthlyRevenue:DB.monthlyRevenue||Array(12).fill(0),
+    apiKey:DB.apiKey||"",
   };
   const json=JSON.stringify(exportData,null,2);
   const blob=new Blob([json],{type:"application/json"});
@@ -3438,7 +3647,7 @@ function exportAllData(){
   // Update last export date
   const el=$("last-export-date");
   if(el)el.textContent=new Date().toLocaleDateString("es-PR",{month:"long",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"});
-  showToast("Backup exportado exitosamente ✓");
+  const totalRec=(DB.invoices.length)+(DB.tickets||[]).length+(DB.quotes||[]).length+(DB.expenses.length)+(DB.clients.length)+(DB.projects||[]).length;showToast("Backup completo exportado — "+totalRec+" registros ✓");
 }
 
 function exportCSV(type){
@@ -3495,7 +3704,7 @@ function processImportFile(file){
         return;
       }
       // Confirm before overwriting
-      const msg="¿Importar datos?\n\nEsto reemplazará:\n• "+data.invoices.length+" facturas\n• "+data.expenses.length+" gastos\n• "+data.clients.length+" clientes\n\nFecha del backup: "+(data.exportedAt?new Date(data.exportedAt).toLocaleString("es-PR"):"Desconocida");
+      const msg="¿Importar datos?\n\nEsto reemplazará:\n• "+data.invoices.length+" facturas\n• "+(data.tickets||[]).length+" tickets\n• "+(data.quotes||[]).length+" cotizaciones\n• "+data.expenses.length+" gastos\n• "+data.clients.length+" clientes\n• "+(data.projects||[]).length+" proyectos\n\nFecha del backup: "+(data.exportedAt?new Date(data.exportedAt).toLocaleString("es-PR"):"Desconocida");
       if(!confirm(msg))return;
       // Apply data (preserve current logo if backup has none)
       const prevLogo=DB.logoSrc;
@@ -3504,6 +3713,11 @@ function processImportFile(file){
       if(data.invoices)DB.invoices=data.invoices;
       if(data.expenses)DB.expenses=data.expenses;
       if(data.transactions)DB.transactions=data.transactions;
+      if(data.tickets)DB.tickets=data.tickets;
+      if(data.quotes)DB.quotes=data.quotes;
+      if(data.projects)DB.projects=data.projects;
+      if(data.monthlyRevenue)DB.monthlyRevenue=data.monthlyRevenue;
+      if(data.apiKey)DB.apiKey=data.apiKey;
       // Refresh all views
       renderAll();
       // Update config fields
