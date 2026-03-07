@@ -129,11 +129,15 @@ select option{background:var(--card);color:var(--text)}
 .badge-inactive{background:rgba(100,100,110,.15);color:var(--text3)}
 /* Bar Chart */
 .bar-chart{display:flex;align-items:flex-end;gap:5px;height:110px;padding:0 2px}
-.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%}
-.bar{width:100%;border-radius:4px 4px 0 0;background:rgba(0,74,128,0.1);border:1px solid rgba(0,74,128,0.15);transition:height .8s cubic-bezier(.34,1.56,.64,1);cursor:pointer}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;position:relative}
+.bar{width:100%;border-radius:4px 4px 0 0;background:rgba(0,74,128,0.1);border:1px solid rgba(0,74,128,0.15);transition:height .8s cubic-bezier(.34,1.56,.64,1),background .15s;cursor:pointer;position:relative}
 .bar.current{background:#004a80;border-color:#004a80}
-.bar:hover{opacity:.7}
+.bar:hover{background:#0369a1 !important;border-color:#0369a1 !important}
+.bar.current:hover{background:#005a9e !important}
 .bar-label{color:var(--text3);font-size:9px;flex-shrink:0}
+.bar-tooltip{position:absolute;bottom:calc(100% + 7px);left:50%;transform:translateX(-50%);background:#004a80;color:#fff;font-family:'DM Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap;padding:5px 9px;border-radius:7px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:200;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.bar-tooltip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#004a80}
+.bar-wrap:hover .bar-tooltip{opacity:1}
 /* Progress */
 .progress-row{margin-bottom:13px}
 .progress-meta{display:flex;justify-content:space-between;margin-bottom:5px}
@@ -1374,9 +1378,12 @@ function renderBarChart(monthlyRevenue,topClient){
   const months=["E","F","M","A","M","J","J","A","S","O","N","D"];
   const curMonth=new Date().getMonth();
   const maxVal=Math.max(...monthlyRevenue,1);
+  const fullMonths=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
   $("bar-chart").innerHTML=monthlyRevenue.map((v,i)=>`
     <div class="bar-wrap">
-      <div class="bar ${i===curMonth?"current":""}" style="height:${Math.max(v>0?(v/maxVal)*100:0,v>0?3:0)}%" title="${months[i]+': '+fmtCur(v)}"></div>
+      <div class="bar ${i===curMonth?"current":""}" style="height:${Math.max(v>0?(v/maxVal)*100:0,v>0?3:0)}%">
+        <div class="bar-tooltip">${fullMonths[i]}<br>${fmtCur(v)}</div>
+      </div>
       <span class="bar-label">${months[i]}</span>
     </div>`).join("");
   const tcEl=$("dashboard-top-client");
@@ -3268,24 +3275,37 @@ function showPL(){
 }
 
 function showAging(filterBucket='all'){
+  // Normalize to local midnight to avoid timezone off-by-one errors
   const now=new Date();
+  const todayMidnight=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   function ageDays(due){
-    const d=Math.floor((now-new Date(due))/(1000*60*60*24));
-    return d;
+    if(!due)return null; // no due date → handle separately
+    // Parse date string as local midnight (avoids UTC shift)
+    const parts=due.split("-");
+    if(parts.length!==3)return null;
+    const dueMidnight=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+    if(isNaN(dueMidnight.getTime()))return null;
+    return Math.floor((todayMidnight-dueMidnight)/(1000*60*60*24));
   }
   const unpaidInv=DB.invoices.filter(i=>i.status!=="paid");
   // Buckets: current = not yet due (days <= 0), 1-30, 31-60, 61-90, 90+
   const buckets=[
-    {key:"current", label:"Current",      sublabel:"No vencidas",   min:-99999, max:0,   color:"#23953c", colorSoft:"rgba(35,149,60,0.1)"},
-    {key:"b1_30",   label:"1 – 30",       sublabel:"días vencidas", min:1,      max:30,  color:"#4e888f", colorSoft:"rgba(78,136,143,0.1)"},
-    {key:"b31_60",  label:"31 – 60",      sublabel:"días vencidas", min:31,     max:60,  color:"#5B7FA6", colorSoft:"rgba(91,127,166,0.1)"},
-    {key:"b61_90",  label:"61 – 90",      sublabel:"días vencidas", min:61,     max:90,  color:"#004a80", colorSoft:"rgba(0,74,128,0.1)"},
-    {key:"b90plus", label:"días vencidas", min:91,     max:99999,color:"#C0392B",colorSoft:"rgba(192,57,43,0.1)"},
+    {key:"current", label:"Current",  sublabel:"No vencidas",    min:-99999, max:0,   color:"#23953c", colorSoft:"rgba(35,149,60,0.1)"},
+    {key:"b1_30",   label:"1 – 30",   sublabel:"días vencidas",  min:1,      max:30,  color:"#4e888f", colorSoft:"rgba(78,136,143,0.1)"},
+    {key:"b31_60",  label:"31 – 60",  sublabel:"días vencidas",  min:31,     max:60,  color:"#5B7FA6", colorSoft:"rgba(91,127,166,0.1)"},
+    {key:"b61_90",  label:"61 – 90",  sublabel:"días vencidas",  min:61,     max:90,  color:"#004a80", colorSoft:"rgba(0,74,128,0.1)"},
+    {key:"b90plus", label:"90+ días",  sublabel:"días vencidas",  min:91,     max:99999,color:"#C0392B",colorSoft:"rgba(192,57,43,0.1)"},
+    {key:"nodue",   label:"Sin fecha", sublabel:"vencimiento s/d",min:null,   max:null, color:"#888",    colorSoft:"rgba(136,136,136,0.1)"},
   ];
   // Map each invoice to a bucket
   const allRows=unpaidInv.map(inv=>{
     const days=ageDays(inv.due);
-    const bucket=buckets.find(b=>days>=b.min&&days<=b.max)||buckets[4];
+    let bucket;
+    if(days===null){
+      bucket=buckets.find(b=>b.key==="nodue");
+    } else {
+      bucket=buckets.find(b=>b.min!==null&&days>=b.min&&days<=b.max)||buckets[4];
+    }
     return {inv,days,bucket,selected:false};
   });
   // Compute totals per bucket
@@ -3351,9 +3371,9 @@ function showAging(filterBucket='all'){
               <td style="font-weight:600">${esc(r.inv.clientName)}</td>
               <td class="mono col-accent">${r.inv.id}</td>
               <td class="col-muted">${fmtDate(r.inv.date)}</td>
-              <td style="color:${r.days>0?"var(--red)":"var(--text2)"}">${fmtDate(r.inv.due)}</td>
-              <td class="mono" style="font-weight:700;color:${r.days>90?"var(--red)":r.days>60?"var(--accent)":r.days>30?"var(--yellow)":r.days>0?"var(--blue)":"var(--green)"}">
-                ${r.days<=0?"Current":"+"+r.days}
+              <td style="color:${r.days===null?"#888":r.days>0?"var(--red)":"var(--text2)"}">${r.inv.due?fmtDate(r.inv.due):"—"}</td>
+              <td class="mono" style="font-weight:700;color:${r.days===null?"#888":r.days>90?"var(--red)":r.days>60?"var(--accent)":r.days>30?"var(--yellow)":r.days>0?"var(--blue)":"var(--green)"}">
+                ${r.days===null?"—":r.days<=0?"Current":"+"+r.days+" días"}
               </td>
               <td class="mono" style="font-weight:600">${fmtCur(r.inv.total)}</td>
               <td><span class="badge" style="background:${r.bucket.colorSoft};color:${r.bucket.color}">${r.bucket.label}</span></td>
