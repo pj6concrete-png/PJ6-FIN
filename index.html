@@ -1224,7 +1224,7 @@ select option{background:var(--card);color:var(--text)}
 
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────────
-var DB={
+const DB={
   apiKey:"",
   company:{name:"PJ6 Concrete Consultant",owner:"PJ6 Team",email:"info@pj6concrete.com",phone:"787-555-0100",address:"Puerto Rico, PR 00000",ytdRevenue:487320,ytdExpenses:198450,taxRate:9,netDays:30},
   clients:[
@@ -1288,7 +1288,7 @@ var DB={
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const $=id=>document.getElementById(id);
 const fmtCur=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(n||0);
-const fmtDate=d=>new Date(d).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+const fmtDate=d=>{if(!d)return"—";const p=String(d).trim();const dt=p.length===10?new Date(p+"T00:00:00"):new Date(p);return isNaN(dt)?p:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});};
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const badgeCls=s=>({paid:"badge-paid",unpaid:"badge-unpaid",overdue:"badge-overdue",active:"badge-active",inactive:"badge-inactive"}[s]||"badge-inactive");
 
@@ -2063,7 +2063,7 @@ function updateNITotal(){
   $("ni-total").textContent=fmtCur(sub+tax);
 }
 // ── ATTACHMENTS ──────────────────────────────────────────────────────────────
-var attachBuffers={ni:[],exp:[],"edit-exp":[]};
+const attachBuffers={ni:[],exp:[],"edit-exp":[]};
 
 function handleAttachDrop(e,prefix){
   e.preventDefault();
@@ -2969,7 +2969,7 @@ function renderExpenses(){
     </tr>`).join("");
 }
 
-function openExpForm(){attachBuffers.exp=[];renderAttachList("exp");$("exp-form-wrap").classList.add("open");$("exp-date").value=new Date().toISOString().split("T")[0];}
+function openExpForm(){$("exp-form-wrap").classList.add("open");$("exp-date").value=new Date().toISOString().split("T")[0];}
 function closeExpForm(){$("exp-form-wrap").classList.remove("open");}
 function saveExpense(){
   const desc=$("exp-desc").value.trim();
@@ -3011,63 +3011,66 @@ function saveEditExpense(){
   saveToStorage();closeModal("edit-exp-overlay");renderExpenses();renderKPIs();showToast("Gasto actualizado ✓"+(_ea.length>0?" · "+_ea.length+" adjunto(s)":""));
 }
 function printExpense(id){
-  var e=DB.expenses.find(function(ex){return ex.id===id;});if(!e)return;
-  var atts=e.attachments||[];
-  var attsHtml="";
-  if(atts.length>0){
-    attsHtml="<div style='margin-top:24px;border-top:2px solid #E5E7EB;padding-top:20px'>"
-      +"<div style='font-size:11px;font-weight:700;color:#9CA3AF;margin-bottom:14px;text-transform:uppercase;letter-spacing:1px'>Documentos Adjuntos ("+atts.length+")</div>";
-    atts.forEach(function(a,idx){
-      if(a.type&&a.type.startsWith("image/")){
-        attsHtml+="<div style='margin-bottom:18px;text-align:center'>"
-          +"<img src='"+a.data+"' style='max-width:100%;max-height:520px;border-radius:8px;border:1px solid #E5E7EB;object-fit:contain;display:block;margin:0 auto'>"
-          +"<div style='font-size:11px;color:#6B7280;margin-top:5px'>"+(a.name||"Adjunto "+(idx+1))+"</div></div>";
-      } else {
-        attsHtml+="<div style='display:flex;align-items:center;gap:10px;padding:10px 16px;background:#F3F4F6;border-radius:8px;margin-bottom:8px'>"
-          +"<span style='font-size:22px'>&#128196;</span>"
-          +"<div><div style='font-size:13px;font-weight:600'>"+a.name+"</div>"
-          +"<div style='font-size:11px;color:#9CA3AF'>"+(a.size?((a.size/1024).toFixed(1)+" KB"):"")+"</div></div></div>";
-      }
-    });
-    attsHtml+="</div>";
-  }
-  var html="<!DOCTYPE html><html><head><meta charset='UTF-8'>"
-    +"<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',sans-serif;color:#111827;padding:40px;max-width:680px;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}img{max-width:100%}@media print{body{padding:0}@page{margin:1.5cm;size:letter}}</style>"
-    +"</head><body>"
-    +"<div style='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #23953c'>"
-    +"<div><img src='"+DB.logoSrc+"' style='height:44px;width:auto;object-fit:contain;margin-bottom:8px;display:block'>"
-    +"<div style='font-size:12px;color:#6B7280;line-height:1.7'>"+DB.company.name+"<br>"+DB.company.address+"<br>"+DB.company.phone+"</div></div>"
-    +"<div style='text-align:right'>"
-    +"<div style='font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:3px'>Comprobante de Gasto</div>"
-    +"<div style='font-size:24px;font-weight:800;color:#23953c;font-family:monospace'>"+e.id+"</div>"
-    +"<div style='margin-top:8px;background:#FEF2F2;color:#DC2626;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block'>GASTO</div></div></div>"
-    +"<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px'>"
-    +"<div><div style='font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px'>Descripcion</div><div style='font-weight:700;font-size:14px'>"+e.description+"</div></div>"
-    +"<div><div style='font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px'>Categoria</div><div style='font-weight:600;font-size:13px'>"+e.category+"</div></div>"
-    +"<div><div style='font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px'>Proveedor</div><div style='font-weight:600;font-size:13px'>"+e.vendor+"</div></div>"
-    +"<div><div style='font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px'>Fecha</div><div style='font-weight:600;font-size:13px'>"+fmtDate(e.date)+"</div></div>"
-    +"<div><div style='font-size:10px;text-transform:uppercase;color:#9CA3AF;margin-bottom:4px'>Recibo</div>"
-    +"<div style='font-weight:600;font-size:13px;color:"+(e.receipt?"#16A34A":"#DC2626")+"'>"+(e.receipt?"Si, disponible":"No disponible")+"</div></div></div>"
-    +"<div style='background:#FFF7ED;border:2px solid #004a80;border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:24px'>"
-    +"<span style='font-size:16px;font-weight:800'>Monto Total</span>"
-    +"<span style='font-size:28px;font-weight:900;color:#DC2626;font-family:monospace'>-"+fmtCur(e.amount)+"</span></div>"
-    +attsHtml
-    +"<div style='border-top:1px solid #E5E7EB;padding-top:16px;margin-top:24px;display:flex;justify-content:space-between'>"
-    +"<span style='font-size:11px;color:#9CA3AF'>PJ6 Finance</span>"
-    +"<span style='font-size:11px;color:#9CA3AF'>"+DB.company.name+"</span></div>"
-    +"</body></html>";
-  var frm=document.getElementById("_print_frame");
-  if(!frm){
-    frm=document.createElement("iframe");
-    frm.id="_print_frame";
-    frm.style.cssText="position:fixed;top:-9999px;left:-9999px;width:800px;height:600px;border:none";
-    document.body.appendChild(frm);
-  }
-  frm.onload=function(){
-    try{frm.contentWindow.focus();frm.contentWindow.print();}catch(err){console.error(err);}
-  };
-  frm.srcdoc=html;
-  showToast("Imprimiendo "+e.id+(atts.length?" - "+atts.length+" adjunto(s)":"")+" OK");
+  const e=DB.expenses.find(ex=>ex.id===id);if(!e)return;
+  const html=`<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><title>Gasto ${e.id}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:"Segoe UI",sans-serif;color:#111827;padding:40px;max-width:680px;margin:0 auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}@media print{body{padding:0}@page{margin:1.5cm;size:letter}}</style>
+</head><body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #23953c">
+    <div><img src="${DB.logoSrc}" style="height:44px;width:auto;object-fit:contain;margin-bottom:8px;display:block" alt="Logo">
+      <div style="font-size:12px;color:#6B7280;line-height:1.7">${DB.company.name}<br>${DB.company.address}<br>${DB.company.phone}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#9CA3AF;margin-bottom:3px">Comprobante de Gasto</div>
+      <div style="font-size:24px;font-weight:800;color:#23953c;font-family:monospace">${e.id}</div>
+      <div style="margin-top:8px;background:#FEF2F2;color:#DC2626;padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block">GASTO</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:24px">
+    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:4px">Descripción</div><div style="font-weight:700;font-size:14px">${e.description}</div></div>
+    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:4px">Categoría</div><div style="font-weight:600;font-size:13px">${e.category}</div></div>
+    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:4px">Proveedor</div><div style="font-weight:600;font-size:13px">${e.vendor}</div></div>
+    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:4px">Fecha</div><div style="font-weight:600;font-size:13px">${fmtDate(e.date)}</div></div>
+    <div><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:4px">Recibo</div><div style="font-weight:600;font-size:13px;color:${e.receipt?'#16A34A':'#DC2626'}">${e.receipt?"✓ Disponible":"✗ No disponible"}</div></div>
+  </div>
+  <div style="background:#FFF7ED;border:2px solid #004a80;border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+    <span style="font-size:16px;font-weight:800;color:#111827">Monto Total</span>
+    <span style="font-size:28px;font-weight:900;color:#DC2626;font-family:monospace">-${fmtCur(e.amount)}</span>
+  </div>
+  ${e.attachments&&e.attachments.length>0?`
+  <div style="margin-bottom:24px">
+    <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#9CA3AF;margin-bottom:10px">Documentos Adjuntos</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      ${e.attachments.map((a,i)=>a.type.startsWith('image/')?`<img src="${a.data}" style="max-width:200px;max-height:150px;border-radius:8px;border:1px solid #E5E7EB;object-fit:cover" alt="Adjunto ${i+1}">`:`<div style="padding:8px 14px;background:#F3F4F6;border-radius:8px;font-size:12px;color:#374151">📎 ${a.name}</div>`).join('')}
+    </div>
+  </div>`:''}
+  <div style="border-top:1px solid #E5E7EB;padding-top:16px;display:flex;justify-content:space-between">
+    <span style="font-size:11px;color:#9CA3AF">Generado por PJ6 Finance</span>
+    <span style="font-size:11px;color:#9CA3AF">${DB.company.name}</span>
+  </div>
+</body></html>`;
+  const w=window.open("","_blank","width=800,height=600");
+  if(!w){showToast("Permite ventanas emergentes para imprimir","var(--yellow)");return;}
+  w.document.open();w.document.write(html);w.document.close();
+  const s=w.document.createElement("script");
+  s.textContent="setTimeout(()=>window.print(),400);";
+  w.document.body.appendChild(s);
+  showToast("Abriendo gasto "+e.id+" para imprimir 🖨️");
+}
+function openExpAttachViewer(id){
+  const e=DB.expenses.find(x=>x.id===id);if(!e)return;
+  const atts=e.attachments||[];if(!atts.length)return;
+  const body=atts.map((a)=>{
+    if(a.type&&a.type.startsWith("image/"))
+      return `<div style="text-align:center;margin-bottom:16px"><img src="${a.data}" style="max-width:100%;max-height:320px;border-radius:10px;border:1px solid var(--border2);object-fit:contain;display:block;margin:0 auto"><div style="font-size:11px;color:var(--text3);margin-top:5px">${esc(a.name)}</div></div>`;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--card2);border-radius:10px;margin-bottom:8px"><span style="font-size:20px">📄</span><div><div style="font-size:13px;font-weight:600">${esc(a.name)}</div><div style="font-size:11px;color:var(--text3)">${(a.size/1024).toFixed(1)}KB</div></div></div>`;
+  }).join("");
+  const ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  const hdr=`<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);flex-shrink:0"><div><div style="font-weight:700;font-size:14px">📎 Adjuntos — ${esc(e.id)}</div><div style="font-size:11px;color:var(--text3)">${atts.length} archivo(s) · ${esc(e.description)}</div></div><button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;cursor:pointer;font-size:22px;color:var(--text3)">×</button></div>`;
+  ov.innerHTML=`<div style="background:var(--card);border-radius:18px;width:100%;max-width:520px;max-height:85vh;overflow:hidden;display:flex;flex-direction:column">${hdr}<div style="padding:18px 20px;overflow-y:auto">${body}</div></div>`;
+  ov.addEventListener("click",ev=>{if(ev.target===ov)ov.remove();});
+  document.body.appendChild(ov);
 }
 function openExpAttachViewer(id){
   const e=DB.expenses.find(x=>x.id===id);if(!e)return;
@@ -3851,7 +3854,6 @@ document.addEventListener("click",e=>{const s=$("sidebar");if(window.innerWidth<
 // Firmas (base64 PNG grandes) se guardan en clave separada para no exceder 5MB
 const LS_KEY="pj6_data_v2";
 const LS_SIGS_KEY="pj6_sigs_v2";
-const LS_ATTS_KEY="pj6_atts_v2";
 function saveToStorage(){
   try{
     const sigs={};
@@ -3866,9 +3868,7 @@ function saveToStorage(){
       }
       return inv;
     });
-    // Separar adjuntos en clave propia
-    const atts={};
-    const expLean=DB.expenses.map(ex=>{if(ex.attachments&&ex.attachments.length>0)atts[ex.id]=ex.attachments;return Object.assign({},ex,{attachments:[]});});
+    const expLean=DB.expenses.map(ex=>Object.assign({},ex,{attachments:[]}));
     const d={tickets:ticketsLean,invoices:invLean,expenses:expLean,clients:DB.clients,projects:DB.projects,quotes:DB.quotes||[],transactions:DB.transactions||[],company:{...DB.company,logoSrc:""},apiKey:DB.apiKey||""};
     const json=JSON.stringify(d);
     try{
@@ -3885,7 +3885,6 @@ function saveToStorage(){
       }
     }
     try{localStorage.setItem(LS_SIGS_KEY,JSON.stringify(sigs));}catch(e2){try{localStorage.setItem(LS_SIGS_KEY,"{}");}catch(e3){}}
-    try{localStorage.setItem(LS_ATTS_KEY,JSON.stringify(atts));}catch(e2){try{localStorage.setItem(LS_ATTS_KEY,"{}");}catch(e3){}}
     return true;
   }catch(e){
     showToast("Error al guardar: "+e.message,"var(--red)");
@@ -3905,8 +3904,7 @@ function loadFromStorage(){
       if(inv.linkedTicket&&sigs["inv_"+inv.id])return Object.assign({},inv,{linkedTicket:Object.assign({},inv.linkedTicket,{signatureData:sigs["inv_"+inv.id]})});
       return inv;
     });
-    let atts={};try{const ar=localStorage.getItem(LS_ATTS_KEY);if(ar)atts=JSON.parse(ar);}catch(e){}
-    if(d.expenses&&Array.isArray(d.expenses))DB.expenses=d.expenses.map(ex=>Object.assign({},ex,{attachments:atts[ex.id]||[]}));
+    if(d.expenses&&Array.isArray(d.expenses))DB.expenses=d.expenses;
     if(d.clients&&Array.isArray(d.clients))DB.clients=d.clients;
     if(d.projects&&Array.isArray(d.projects))DB.projects=d.projects;
     if(d.quotes&&Array.isArray(d.quotes))DB.quotes=d.quotes;
