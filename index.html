@@ -486,6 +486,18 @@ select option{background:var(--card);color:var(--text)}
     <!-- INVOICES -->
     <div class="view" id="view-invoices">
       <div class="grid-3" id="inv-kpis"></div>
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-weight:800;margin-bottom:12px">🔎 Filtrar facturas para consultar e imprimir</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;align-items:end">
+          <div class="field-group" style="margin:0"><label class="field-label">Cliente</label><select class="field-input" id="inv-filter-client" onchange="renderInvoices()"><option value="all">Todos los clientes</option></select></div>
+          <div class="field-group" style="margin:0"><label class="field-label">Proyecto</label><select class="field-input" id="inv-filter-project" onchange="renderInvoices()"><option value="all">Todos los proyectos</option></select></div>
+          <div class="field-group" style="margin:0"><label class="field-label">Desde</label><input class="field-input" type="date" id="inv-filter-from" onchange="renderInvoices()"></div>
+          <div class="field-group" style="margin:0"><label class="field-label">Hasta</label><input class="field-input" type="date" id="inv-filter-to" onchange="renderInvoices()"></div>
+          <button class="btn-ghost" onclick="clearInvoiceFilters()">Limpiar filtros</button>
+          <button class="btn-primary btn-print" onclick="printFilteredInvoices()">🖨️ Imprimir listado</button>
+        </div>
+        <div id="inv-filter-summary" style="font-size:11px;color:var(--text2);margin-top:10px"></div>
+      </div>
       <div class="card-lg" style="overflow:hidden">
         <table class="data-table" id="inv-table">
           <thead><tr><th>Factura</th><th>Cliente</th><th>Proyecto</th><th>Fecha</th><th>Vencimiento</th><th>Monto</th><th>Estado</th><th style="text-align:center">Acciones</th></tr></thead>
@@ -1418,23 +1430,50 @@ function renderTxns(txns){
 
 
 // ── INVOICES ──────────────────────────────────────────────────────────────────
+function getFilteredInvoices(){
+  const client=$("inv-filter-client")?.value||"all";
+  const project=$("inv-filter-project")?.value||"all";
+  const from=$("inv-filter-from")?.value||"";
+  const to=$("inv-filter-to")?.value||"";
+  return DB.invoices.filter(i=>{
+    if(client!=="all" && i.clientName!==client) return false;
+    if(project!=="all" && (i.projectName||"")!==project) return false;
+    if(from && (!i.date || i.date<from)) return false;
+    if(to && (!i.date || i.date>to)) return false;
+    return true;
+  });
+}
+function populateInvoiceFilters(){
+  const clientEl=$("inv-filter-client"), projectEl=$("inv-filter-project");
+  if(!clientEl||!projectEl)return;
+  const oldClient=clientEl.value||"all", oldProject=projectEl.value||"all";
+  const clients=[...new Set(DB.invoices.map(i=>i.clientName).filter(Boolean))].sort();
+  const projects=[...new Set([...DB.projects.map(p=>p.name),...DB.invoices.map(i=>i.projectName).filter(Boolean)])].sort();
+  clientEl.innerHTML='<option value="all">Todos los clientes</option>'+clients.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  projectEl.innerHTML='<option value="all">Todos los proyectos</option>'+projects.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join("");
+  if([...clientEl.options].some(o=>o.value===oldClient))clientEl.value=oldClient;
+  if([...projectEl.options].some(o=>o.value===oldProject))projectEl.value=oldProject;
+}
 function renderInvoices(filter=""){
+  populateInvoiceFilters();
   const unpaid=DB.invoices.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
   const overdue=DB.invoices.filter(i=>i.status==="overdue").reduce((s,i)=>s+i.total,0);
   $("inv-kpis").innerHTML=`
     <div class="card"><div class="kpi-label">Total Facturado</div><div class="kpi-value">${fmtCur(DB.invoices.reduce((s,i)=>s+i.total,0))}</div><div class="kpi-sub">${DB.invoices.length} facturas</div></div>
     <div class="card kpi-yellow"><div class="kpi-label">Por Cobrar</div><div class="kpi-value">${fmtCur(unpaid)}</div><div class="kpi-sub">${DB.invoices.filter(i=>i.status!=="paid").length} pendientes</div></div>
     <div class="card kpi-red"><div class="kpi-label">Vencido</div><div class="kpi-value">${fmtCur(overdue)}</div><div class="kpi-sub">Requiere atención</div></div>`;
-  const list=filter?DB.invoices.filter(i=>i.clientName.toLowerCase().includes(filter)||i.id.toLowerCase().includes(filter)):DB.invoices;
+  let list=getFilteredInvoices();
+  if(filter) list=list.filter(i=>(i.clientName||"").toLowerCase().includes(filter)||(i.id||"").toLowerCase().includes(filter));
+  $("inv-filter-summary").textContent=`Mostrando ${list.length} de ${DB.invoices.length} facturas · Total filtrado: ${fmtCur(list.reduce((sum,i)=>sum+i.total,0))}`;
   $("inv-tbody").innerHTML=list.map(inv=>`
     <tr>
-      <td class="mono col-accent">${inv.id}</td>
+      <td class="mono col-accent">${esc(inv.id)}</td>
       <td>${esc(inv.clientName)}</td>
       <td class="col-muted" style="font-size:12px">${esc(inv.projectName||"—")}</td>
       <td class="col-muted">${fmtDate(inv.date)}</td>
       <td style="color:${inv.status==="overdue"?"#C0392B":"var(--text2)"}">${fmtDate(inv.due)}</td>
       <td class="mono" style="font-weight:600">${fmtCur(inv.total)}</td>
-      <td><span class="badge ${badgeCls(inv.status)}">${inv.status}</span></td>
+      <td><span class="badge ${badgeCls(inv.status)}">${esc(inv.status)}</span></td>
       <td style="text-align:center;white-space:nowrap">
         <button class="btn-icon" title="Ver detalle" onclick="openInvDetail('${inv.id}')">👁</button>
         <button class="btn-icon" title="Imprimir" onclick="quickPrintInvoice('${inv.id}')" style="margin-left:4px">🖨️</button>
@@ -1442,6 +1481,29 @@ function renderInvoices(filter=""){
         <button class="btn-icon" title="Eliminar" onclick="deleteInvoice('${inv.id}')" style="margin-left:4px;color:var(--red)">🗑</button>
       </td>
     </tr>`).join("");
+}
+function clearInvoiceFilters(){
+  ["inv-filter-from","inv-filter-to"].forEach(id=>{if($(id))$(id).value="";});
+  if($("inv-filter-client"))$("inv-filter-client").value="all";
+  if($("inv-filter-project"))$("inv-filter-project").value="all";
+  renderInvoices();
+}
+function printFilteredInvoices(){
+  const list=getFilteredInvoices().sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  if(!list.length){showToast("No hay facturas para imprimir","var(--yellow)");return;}
+  const eh=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const total=list.reduce((sum,i)=>sum+(Number(i.total)||0),0);
+  const html=`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Listado de facturas</title>
+  <style>body{font-family:Arial,sans-serif;color:#222;padding:24px}h1{color:#004a80;font-size:22px}p{color:#555;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:11px}th{background:#eef3f7}td.money{text-align:right;white-space:nowrap}.total{margin-top:16px;text-align:right;font-weight:bold}</style></head><body>
+  <h1>${eh(DB.company.name||"PJ6 Finance")} — Listado de Facturas</h1>
+  <p>Cliente: ${eh($("inv-filter-client").selectedOptions[0]?.text||"Todos")} · Proyecto: ${eh($("inv-filter-project").selectedOptions[0]?.text||"Todos")} · Desde: ${eh($("inv-filter-from").value||"—")} · Hasta: ${eh($("inv-filter-to").value||"—")}</p>
+  <table><thead><tr><th>Factura</th><th>Cliente</th><th>Proyecto</th><th>Fecha</th><th>Vencimiento</th><th>Estado</th><th style="text-align:right">Total</th></tr></thead><tbody>
+  ${list.map(i=>`<tr><td>${eh(i.id)}</td><td>${eh(i.clientName)}</td><td>${eh(i.projectName||"—")}</td><td>${eh(fmtDate(i.date))}</td><td>${eh(fmtDate(i.due))}</td><td>${eh(i.status)}</td><td class="money">${eh(fmtCur(i.total))}</td></tr>`).join("")}
+  </tbody></table><div class="total">Total listado: ${eh(fmtCur(total))} · ${list.length} factura(s)</div>
+  <script>window.onload=()=>window.print()<\/script></body></html>`;
+  const w=window.open("","_blank","width=1100,height=750");
+  if(!w){showToast("Permite ventanas emergentes para imprimir","var(--yellow)");return;}
+  w.document.open();w.document.write(html);w.document.close();
 }
 
 function openInvDetail(id){
@@ -1526,6 +1588,16 @@ function confirmPay(){
   showToast("✓ Pago registrado · "+methodLabel+(method==="check"&&checkNum?" #"+checkNum:""));
 }
 
+// IDs secuenciales para nuevos tickets y facturas; conserva los IDs históricos.
+function nextSequentialId(prefix, records, width=4){
+  const re=new RegExp("^"+prefix.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"-(\\d+)$");
+  const max=(records||[]).reduce((highest,item)=>{
+    const match=String(item?.id||"").match(re);
+    return match?Math.max(highest,Number(match[1])||0):highest;
+  },0);
+  return prefix+"-"+String(max+1).padStart(width,"0");
+}
+
 // ── ESTADO DE CUENTA ─────────────────────────────────────
 function showEstadoCuenta(){
   const now=new Date();
@@ -1534,7 +1606,9 @@ function showEstadoCuenta(){
   const firstDay=y+"-01-01";
   const today=now.toISOString().split("T")[0];
   const clients=["all",...new Set(DB.invoices.map(i=>i.clientName))].filter(Boolean);
-  const clientOpts=clients.map(c=>`<option value="${c}">${c==="all"?"— Todos los Clientes —":c}</option>`).join("");
+  const clientOpts=clients.map(c=>`<option value="${esc(c)}">${c==="all"?"— Todos los Clientes —":esc(c)}</option>`).join("");
+  const projects=["all",...new Set([...DB.projects.map(p=>p.name),...DB.invoices.map(i=>i.projectName).filter(Boolean)])];
+  const projectOpts=projects.map(p=>`<option value="${esc(p)}">${p==="all"?"— Todos los Proyectos —":esc(p)}</option>`).join("");
 
   $("report-area").innerHTML=`
   <div class="card" style="margin-top:8px">
@@ -1548,7 +1622,7 @@ function showEstadoCuenta(){
       </div>
     </div>
     <!-- Filters -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;margin-bottom:20px;align-items:end">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px;align-items:end">
       <div class="field-group" style="margin:0">
         <label class="field-label">Desde</label>
         <input type="date" class="field-input" id="ec-from" value="${firstDay}">
@@ -1560,6 +1634,10 @@ function showEstadoCuenta(){
       <div class="field-group" style="margin:0">
         <label class="field-label">Cliente</label>
         <select class="field-input" id="ec-client">${clientOpts}</select>
+      </div>
+      <div class="field-group" style="margin:0">
+        <label class="field-label">Proyecto</label>
+        <select class="field-input" id="ec-project">${projectOpts}</select>
       </div>
       <button class="btn-primary" style="height:40px;padding:0 18px" onclick="renderEstadoCuenta()">Consultar</button>
     </div>
@@ -1573,6 +1651,7 @@ function renderEstadoCuenta(){
   const from=new Date($("ec-from").value+"T00:00:00");
   const to=new Date($("ec-to").value+"T23:59:59");
   const clientFilter=$("ec-client").value;
+  const projectFilter=$("ec-project")?.value||"all";
 
   // Get ALL invoices in range (both paid and unpaid)
   let invs=DB.invoices.filter(i=>{
@@ -1580,6 +1659,7 @@ function renderEstadoCuenta(){
     return d>=from && d<=to;
   });
   if(clientFilter!=="all") invs=invs.filter(i=>i.clientName===clientFilter);
+  if(projectFilter!=="all") invs=invs.filter(i=>(i.projectName||"")===projectFilter);
   invs=invs.sort((a,b)=>new Date(a.date)-new Date(b.date));
 
   if(invs.length===0){
@@ -1605,7 +1685,8 @@ function renderEstadoCuenta(){
     return `<tr>
       <td style="padding:10px 12px;font-size:12px;color:var(--text3)">${fmtDate(i.date)}</td>
       <td style="padding:10px 12px;font-size:12px;font-weight:700;color:#004a80;font-family:monospace">${i.id}</td>
-      <td style="padding:10px 12px;font-size:12px;color:var(--text)">${i.clientName}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--text2)">${esc(i.projectName||"—")}</td>
+      <td style="padding:10px 12px;font-size:12px;color:var(--text)">${esc(i.clientName||"")}</td>
       <td style="padding:10px 12px;font-size:12px;color:var(--text2)">${fmtDate(i.due)}</td>
       <td style="padding:10px 12px;font-size:12px;font-weight:600;text-align:right">${fmtCur(i.total)}</td>
       <td style="padding:10px 12px;text-align:center">${statusBadge}</td>
@@ -1639,6 +1720,7 @@ function renderEstadoCuenta(){
         <tr style="background:rgba(0,74,128,0.05);border-bottom:2px solid rgba(0,74,128,0.15)">
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:var(--text3);font-weight:700">FECHA</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:var(--text3);font-weight:700">FACTURA</th>
+          <th style="padding:10px 12px;text-align:left;font-size:11px;color:var(--text3);font-weight:700">PROYECTO</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:var(--text3);font-weight:700">CLIENTE</th>
           <th style="padding:10px 12px;text-align:left;font-size:11px;color:var(--text3);font-weight:700">VENCE</th>
           <th style="padding:10px 12px;text-align:right;font-size:11px;color:var(--text3);font-weight:700">TOTAL</th>
@@ -1651,7 +1733,7 @@ function renderEstadoCuenta(){
       <tbody>
         ${rows}
         <tr style="background:rgba(0,74,128,0.05);border-top:2px solid rgba(0,74,128,0.2)">
-          <td colspan="4" style="padding:10px 12px;font-weight:800;font-size:12px;color:var(--text)">TOTALES</td>
+          <td colspan="5" style="padding:10px 12px;font-weight:800;font-size:12px;color:var(--text)">TOTALES</td>
           <td style="padding:10px 12px;font-weight:800;font-size:13px;color:#004a80;text-align:right;font-family:monospace">${fmtCur(totalFacturado)}</td>
           <td colspan="4"></td>
         </tr>
@@ -1664,6 +1746,7 @@ function printEstadoCuenta(){
   const from=$("ec-from")?.value||"";
   const to=$("ec-to")?.value||"";
   const clientFilter=$("ec-client")?.value||"all";
+  const projectFilter=$("ec-project")?.value||"all";
   if(!from||!to){showToast("Selecciona un rango de fechas","var(--yellow)");return;}
 
   const fromD=new Date(from+"T00:00:00");
@@ -1673,6 +1756,7 @@ function printEstadoCuenta(){
     return d>=fromD && d<=toD;
   });
   if(clientFilter!=="all") invs=invs.filter(i=>i.clientName===clientFilter);
+  if(projectFilter!=="all") invs=invs.filter(i=>(i.projectName||"")===projectFilter);
   invs=invs.sort((a,b)=>new Date(a.date)-new Date(b.date));
 
   const totalFacturado=invs.reduce((s,i)=>s+i.total,0);
@@ -1689,7 +1773,8 @@ function printEstadoCuenta(){
     return `<tr style="border-bottom:1px solid #E5E7EB">
       <td style="padding:7px 8px;font-size:11px">${fmtDate(i.date)}</td>
       <td style="padding:7px 8px;font-size:11px;font-weight:700;color:#004a80;font-family:monospace">${i.id}</td>
-      <td style="padding:7px 8px;font-size:11px">${i.clientName}</td>
+      <td style="padding:7px 8px;font-size:11px">${esc(i.projectName||"—")}</td>
+      <td style="padding:7px 8px;font-size:11px">${esc(i.clientName||"")}</td>
       <td style="padding:7px 8px;font-size:11px">${fmtDate(i.due)}</td>
       <td style="padding:7px 8px;font-size:11px;font-weight:700;text-align:right;font-family:monospace">${fmtCur(i.total)}</td>
       <td style="padding:7px 8px;font-size:10px;font-weight:700;color:${statusColor};text-align:center">${statusLabel}</td>
@@ -1701,6 +1786,7 @@ function printEstadoCuenta(){
 
   const logoHtml=DB.logoSrc?`<img src="${DB.logoSrc}" style="height:40px;object-fit:contain">`:"<div style='font-weight:900;font-size:18px;color:#004a80'>PJ6</div>";
   const clientLabel=clientFilter==="all"?"Todos los Clientes":clientFilter;
+  const projectLabel=projectFilter==="all"?"Todos los Proyectos":projectFilter;
   const printHtml=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Estado de Cuenta</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1735,7 +1821,8 @@ tr:nth-child(even){background:#F8F9FA}
   <div style="text-align:right">
     <div class="report-title">Estado de Cuenta</div>
     <div class="report-sub">Período: ${fmtDate(from)} al ${fmtDate(to)}</div>
-    <div class="report-sub">Cliente: ${clientLabel}</div>
+    <div class="report-sub">Cliente: ${esc(clientLabel)}</div>
+    <div class="report-sub">Proyecto: ${esc(projectLabel)}</div>
     <div class="report-sub">Generado: ${fmtDate(new Date().toISOString())}</div>
   </div>
 </div>
@@ -1759,7 +1846,7 @@ tr:nth-child(even){background:#F8F9FA}
 <table>
   <thead>
     <tr>
-      <th>FECHA</th><th>FACTURA</th><th>CLIENTE</th><th>VENCE</th>
+      <th>FECHA</th><th>FACTURA</th><th>PROYECTO</th><th>CLIENTE</th><th>VENCE</th>
       <th style="text-align:right">TOTAL</th><th style="text-align:center">STATUS</th>
       <th>FECHA PAGO</th><th>MÉTODO</th><th>NOTAS</th>
     </tr>
@@ -1767,7 +1854,7 @@ tr:nth-child(even){background:#F8F9FA}
   <tbody>
     ${rows}
     <tr class="tfoot-row">
-      <td colspan="4" style="padding:8px">TOTALES (${invs.length} registros)</td>
+      <td colspan="5" style="padding:8px">TOTALES (${invs.length} registros)</td>
       <td style="padding:8px;text-align:right;font-family:monospace;color:#004a80">${fmtCur(totalFacturado)}</td>
       <td colspan="4"></td>
     </tr>
@@ -2104,7 +2191,7 @@ function saveNewInvoice(){
   const niTaxRateInput=$("ni-tax-rate");
   const niTaxPct=niTaxRateInput?parseFloat(niTaxRateInput.value)||0:DB.company.taxRate;
   const tax=sub*(niTaxPct/100);
-  const id="INV-"+Date.now().toString().slice(-4);
+  const id=nextSequentialId("INV",DB.invoices,4);
   const notes=document.getElementById("ni-notes")?document.getElementById("ni-notes").value:"";
   const _proj=document.getElementById("ni-project")?document.getElementById("ni-project").value.trim():"";
   DB.invoices.unshift({id,clientId,clientName:client.name,projectName:_proj,amount:sub,tax,taxRate:niTaxPct,total:sub+tax,date:$("ni-date").value,due:$("ni-due").value,status:"unpaid",items:[...DB.niItems],notes,attachments:[...attachBuffers.ni]});
@@ -2421,7 +2508,7 @@ function saveTicket(){
       }
     }
     if(!DB.currentTicketId){
-      const id="TKT-"+String(Date.now()).slice(-4);
+      const id=nextSequentialId("TKT",DB.tickets,4);
       tktData.id=id;
       DB.tickets.unshift(tktData);
     }
@@ -2497,7 +2584,7 @@ function confirmTicketToInvoice(){
   const client=DB.clients.find(c=>c.id===clientId);
   const today=new Date().toISOString().split("T")[0];
   const due=new Date(Date.now()+DB.company.netDays*86400000).toISOString().split("T")[0];
-  const invId="INV-"+Date.now().toString().slice(-4);
+  const invId=nextSequentialId("INV",DB.invoices,4);
   // Snapshot del ticket para adjuntarlo a la factura
   const ticketSnapshot={
     id:t.id,
@@ -2839,7 +2926,7 @@ function quoteToInvoice(id){
   if(!confirm("¿Convertir cotización "+id+" en factura?"))return;
   const today=new Date().toISOString().split("T")[0];
   const due=new Date(Date.now()+DB.company.netDays*86400000).toISOString().split("T")[0];
-  const invId="INV-"+Date.now().toString().slice(-4);
+  const invId=nextSequentialId("INV",DB.invoices,4);
   DB.invoices.unshift({id:invId,clientId:q.clientId,clientName:q.clientName,amount:q.amount,tax:q.tax,taxRate:q.taxRate,total:q.total,date:today,due,status:"unpaid",items:[...q.items],notes:"Generada desde "+q.id});
   q.status="approved";
   renderQuotes();renderInvoices();renderKPIs();
@@ -3915,6 +4002,3 @@ function loadFromStorage(){
 }
 loadFromStorage();
 renderAll();
-</script>
-</body>
-</html>
